@@ -16,6 +16,9 @@ export interface MonthlyRevenueItem {
 export interface ProductTypeItem {
   name: string;
   percentage: number;
+  revenue_m?: number;
+  raw_revenue?: number;
+  formatted_rp?: string;
   color: string;
 }
 
@@ -46,6 +49,7 @@ export interface OverviewSummaryData {
   monthly_revenue_2026: MonthlyRevenueItem[];
   revenue_by_product_type: {
     total_formatted: string;
+    total_raw?: number;
     items: ProductTypeItem[];
   };
   competitor_position: CompetitorMetricItem[];
@@ -94,7 +98,20 @@ export const INITIAL_OVERVIEW_DATA: OverviewSummaryData = {
   top_5_customers: [],
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    // When accessed via LAN IP (e.g. 192.168.2.69) from colleague or mentor laptop,
+    // connect directly to port 8001 on that same host with full CORS support!
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
+      return `http://${host}:8001/api/v1`;
+    }
+    // On localhost, use Next.js proxy rewrite
+    return "/api/py";
+  }
+  // Server-side (SSR / Node.js) fallback
+  return process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001/api/v1";
+};
 
 export async function fetchOverviewSummary(
   entity: string = "Semua",
@@ -102,8 +119,9 @@ export async function fetchOverviewSummary(
   source: string = "live_sql"
 ): Promise<OverviewSummaryData> {
   try {
+    const baseUrl = getApiBaseUrl();
     const res = await fetch(
-      `${API_BASE_URL}/overview/summary?entity=${encodeURIComponent(
+      `${baseUrl}/overview/summary?entity=${encodeURIComponent(
         entity
       )}&periode=${encodeURIComponent(periode)}&source=${encodeURIComponent(source)}`,
       {
@@ -122,7 +140,8 @@ export async function uploadCompetitorFile(file: File): Promise<{ success: boole
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE_URL}/competitors/upload`, {
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/competitors/upload`, {
     method: "POST",
     body: formData,
   });

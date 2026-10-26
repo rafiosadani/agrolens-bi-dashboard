@@ -10,6 +10,7 @@ interface EChartProps {
   className?: string;
   loading?: boolean;
   onChartReady?: (chart: echarts.ECharts) => void;
+  onEvents?: Record<string, (params: any) => void>;
 }
 
 export function EChart({
@@ -18,6 +19,7 @@ export function EChart({
   className = "",
   loading = false,
   onChartReady,
+  onEvents,
 }: EChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
@@ -41,6 +43,13 @@ export function EChart({
 
     if (onChartReady) {
       onChartReady(chart);
+    }
+
+    // Register event listeners
+    if (onEvents) {
+      Object.entries(onEvents).forEach(([eventName, handler]) => {
+        chart.on(eventName, handler);
+      });
     }
 
     // Resize observer for responsive layout

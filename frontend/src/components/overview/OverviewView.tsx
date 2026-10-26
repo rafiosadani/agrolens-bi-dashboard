@@ -170,7 +170,10 @@ export function OverviewView({
         <div className="lg:col-span-2">
           <ProductTypeDonutChart
             totalFormatted={revenue_by_product_type.total_formatted}
+            totalRaw={revenue_by_product_type.total_raw}
             items={revenue_by_product_type.items}
+            period={data.period || period}
+            databaseQueried={data.database_queried}
           />
         </div>
       </div>

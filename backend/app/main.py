@@ -28,10 +28,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS setup for decoupled Next.js frontend
+# CORS setup for decoupled Next.js frontend (Supports localhost, LAN IPs, and mobile devices)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all during development
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

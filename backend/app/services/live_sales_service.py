@@ -66,6 +66,7 @@ def get_live_overview_from_sql(
     monthly_raw_data: Dict[str, float] = {month_names[m]: 0.0 for m in active_months}
     top_customers_dict: Dict[str, float] = {}
     categories_dict: Dict[str, float] = {}
+    categories_raw_dict: Dict[str, float] = {}
     total_revenue_real = 0.0
 
     # 2. Determine target databases dynamically based on entity filter, year, and server databases
@@ -137,7 +138,7 @@ def get_live_overview_from_sql(
 
                 # C. Product Categories
                 sql_cat = f"""
-                    SELECT TOP 6 ISNULL(cat.NamaKategory, 'UMUM') AS Kategori, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
+                    SELECT TOP 10 ISNULL(cat.NamaKategory, 'UMUM') AS Kategori, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
                     FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
                     JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
                     LEFT JOIN [{db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
@@ -152,8 +153,10 @@ def get_live_overview_from_sql(
                     cur.execute(sql_cat)
                     for r in cur.fetchall():
                         cat_name = r[0] or "UMUM"
-                        val_m = float(r[1] or 0) / 1e9
+                        raw_rp = float(r[1] or 0)
+                        val_m = raw_rp / 1e9
                         categories_dict[cat_name] = categories_dict.get(cat_name, 0.0) + val_m
+                        categories_raw_dict[cat_name] = categories_raw_dict.get(cat_name, 0.0) + raw_rp
                 except Exception as cat_err:
                     logger.debug(f"Categories query skipped for {db_name}: {cat_err}")
 
@@ -178,15 +181,19 @@ def get_live_overview_from_sql(
         for name, rev in top_cust_sorted
     ]
 
-    # Build formatted categories list
-    total_cat_val = sum(categories_dict.values()) or 1.0
-    colors = ["#1E3A8A", "#0D9488", "#D97706", "#64748B", "#2563EB", "#7C3AED"]
+    # Build formatted categories list with exact raw rupiah and percentage
+    total_cat_raw = sum(categories_raw_dict.values()) or (total_revenue_real or 1.0)
+    colors = ["#1E3A8A", "#0D9488", "#D97706", "#64748B", "#2563EB", "#7C3AED", "#059669"]
     category_list = []
-    for idx, (cat_name, cat_val) in enumerate(sorted(categories_dict.items(), key=lambda x: x[1], reverse=True)[:4]):
-        pct = round((cat_val / total_cat_val) * 100)
+    for idx, (cat_name, cat_val) in enumerate(sorted(categories_dict.items(), key=lambda x: x[1], reverse=True)):
+        raw_val = categories_raw_dict.get(cat_name, 0.0)
+        pct = round((raw_val / total_cat_raw) * 100, 1)
         category_list.append({
             "name": cat_name,
             "percentage": pct,
+            "revenue_m": round(cat_val, 2),
+            "raw_revenue": round(raw_val, 2),
+            "formatted_rp": f"Rp {raw_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
             "color": colors[idx % len(colors)]
         })
 
@@ -203,13 +210,9 @@ def get_live_overview_from_sql(
         "monthly_revenue_2026": monthly_list,
         "top_5_customers": top_customers_list,
         "revenue_by_product_type": {
-            "total_formatted": f"{total_m:.2f} M".replace(".", ","),
-            "items": category_list if category_list else [
-                {"name": "PUPUK MIKRO", "percentage": 70, "color": "#1E3A8A"},
-                {"name": "TRADING", "percentage": 27, "color": "#0D9488"},
-                {"name": "PUPUK HAYATI", "percentage": 2, "color": "#D97706"},
-                {"name": "LAINNYA", "percentage": 1, "color": "#64748B"},
-            ]
+            "total_formatted": f"IDR {total_m:.2f} M".replace(".", ","),
+            "total_raw": round(total_revenue_real, 2),
+            "items": category_list
         },
         "total_revenue_m": total_m,
         "total_revenue_raw": round(total_revenue_real, 2)
