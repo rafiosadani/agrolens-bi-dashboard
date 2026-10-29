@@ -90,42 +90,45 @@ export function MonthlyRevenueChartSkeleton() {
 
 export function DonutChartSkeleton() {
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-[380px]">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-xs flex flex-col justify-between h-full min-h-[380px]">
       <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-slate-800/80 mb-2">
         <div className="space-y-1.5">
           <Skeleton className="h-4 w-36" />
           <Skeleton className="h-3 w-48" />
         </div>
-        <Skeleton className="h-5 w-20 rounded-full" />
+        <Skeleton className="h-8.5 w-24 rounded-lg" />
       </div>
 
-      {/* Donut Center Cutout Ring Skeleton */}
-      <div className="flex items-center justify-center py-4 relative">
-        <div className="h-40 w-40 rounded-full shimmer-wave flex items-center justify-center p-7">
-          <div className="h-full w-full rounded-full bg-white dark:bg-slate-900 flex flex-col items-center justify-center gap-1">
-            <Skeleton className="h-2.5 w-10" />
-            <Skeleton className="h-4 w-16" />
+      {/* Side-by-Side: Donut on Left, Legend List on Right */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 py-2 flex-1">
+        {/* Left: Round Donut Skeleton */}
+        <div className="relative w-48 h-48 sm:w-52 sm:h-52 shrink-0 flex items-center justify-center">
+          <div className="h-44 w-44 rounded-full shimmer-wave flex items-center justify-center p-7">
+            <div className="h-full w-full rounded-full bg-white dark:bg-slate-900 flex flex-col items-center justify-center gap-1.5">
+              <Skeleton className="h-2.5 w-12" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-2.5 w-14" />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Legend Rows */}
-      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-2.5 w-2.5 rounded-full" />
-          <Skeleton className="h-3 w-20" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-2.5 w-2.5 rounded-full" />
-          <Skeleton className="h-3 w-16" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-2.5 w-2.5 rounded-full" />
-          <Skeleton className="h-3 w-18" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-2.5 w-2.5 rounded-full" />
-          <Skeleton className="h-3 w-14" />
+        {/* Right: Vertical Category Rows Skeleton */}
+        <div className="flex-1 w-full space-y-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between p-2 rounded-lg bg-slate-50/60 dark:bg-slate-800/20 border border-slate-100 dark:border-slate-800/60"
+            >
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-4 w-10 rounded" />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -6,13 +6,13 @@ import { Download, Upload, Filter, Building2, RotateCcw, Loader2, Check } from "
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 
 export type ReportTab =
-  | "ringkasan"
+  | "overview"
   | "revenue"
-  | "profitabilitas"
-  | "kesehatan_keuangan"
-  | "biaya"
-  | "customer_piutang"
-  | "operasional";
+  | "profitability"
+  | "financial-health"
+  | "cost"
+  | "customers-ar"
+  | "operations";
 
 interface OverviewHeaderProps {
   activeTab: ReportTab;
@@ -21,6 +21,7 @@ interface OverviewHeaderProps {
   onPeriodChange: (period: string) => void;
   selectedEntity: string;
   onEntityChange: (entity: string) => void;
+  onResetFilters?: () => void;
   onOpenUploadModal: () => void;
   onDownload: () => void;
   databaseQueried?: string;
@@ -29,13 +30,13 @@ interface OverviewHeaderProps {
 }
 
 const TABS: { id: ReportTab; label: string }[] = [
-  { id: "ringkasan", label: "Ringkasan" },
+  { id: "overview", label: "Ringkasan" },
   { id: "revenue", label: "Revenue" },
-  { id: "profitabilitas", label: "Profitabilitas" },
-  { id: "kesehatan_keuangan", label: "Kesehatan Keuangan" },
-  { id: "biaya", label: "Biaya" },
-  { id: "customer_piutang", label: "Customer & Piutang" },
-  { id: "operasional", label: "Operasional" },
+  { id: "profitability", label: "Profitabilitas" },
+  { id: "financial-health", label: "Kesehatan Keuangan" },
+  { id: "cost", label: "Biaya" },
+  { id: "customers-ar", label: "Customer & Piutang" },
+  { id: "operations", label: "Operasional" },
 ];
 
 export function OverviewHeader({
@@ -45,6 +46,7 @@ export function OverviewHeader({
   onPeriodChange,
   selectedEntity,
   onEntityChange,
+  onResetFilters,
   onOpenUploadModal,
   onDownload,
   databaseQueried = "APIdb003, AGCdb003, AGFdb003",
@@ -96,8 +98,12 @@ export function OverviewHeader({
   };
 
   const handleResetFilters = () => {
-    onPeriodChange("Jan–Sep 2026");
-    onEntityChange("Semua");
+    if (onResetFilters) {
+      onResetFilters();
+    } else {
+      onPeriodChange("Jan–Sep 2026");
+      onEntityChange("Semua");
+    }
   };
 
   return (

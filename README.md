@@ -1,35 +1,34 @@
-# 🌾 AgroLens: AgroFarm Business Intelligence & Executive Analytics Hub
+# 🌾 AgroLens: Executive BI & Analytics Hub
 
-**AgroLens** adalah platform analitik bisnis dan Business Intelligence (BI) kelas dunia untuk ekosistem grup **AgroFarm**. Sistem ini mengonsumsi, mengagregasikan, dan memvisualisasikan data operasional serta finansial dari server Microsoft SQL Server lokal yang disinkronkan oleh **AgroSync Hub**.
+**AgroLens** adalah platform analitik bisnis dan Business Intelligence (BI) untuk konsolidasi data eksekutif grup **AgroFarm** (PT Agri Prime Internasional, PT Agrochem Mega Globalindo, dan PT Agrofarm Nusa Raya). Sistem ini mengagregasikan dan menyajikan data operasional serta finansial secara langsung dari database Microsoft SQL Server lokal.
 
 ---
 
-## 🏛️ Arsitektur Sistem (Decoupled Architecture)
+## 🏛️ Arsitektur Sistem
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│               Front-End: Next.js (Port 3000)                   │
-│   App Router · TypeScript · Tailwind CSS · Lucide Icons · Recharts │
+│               Front-End: Next.js (Port 3001)                   │
+│   App Router · TypeScript · Tailwind CSS · Lucide · Apache ECharts │
 │   - Executive KPI Summary Cards                                 │
-│   - Order-to-Cash (O2C) Funnel Pipeline                         │
-│   - Audit Risiko Surat Jalan Gantung (Outstanding SJ)           │
-│   - Segmentasi Pelanggan (Afiliasi vs Non-Afiliasi)             │
-│   - Dynamic Global Filter Bar (Entity, Period, Segment)        │
+│   - Realisasi Penjualan Bulanan & Modal Audit SQL               │
+│   - Revenue per Jenis Produk (Donut & Audit Table)              │
+│   - Global Dynamic Filter Bar (Entitas & Tahun Dinamis)         │
 └────────────────────────────────▲────────────────────────────────┘
                                  │ REST API JSON
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│             Back-End: Python FastAPI (Port 8000)                │
-│       FastAPI · pyodbc · Pandas · In-Memory TTL Cache Engine    │
+│             Back-End: Python FastAPI (Port 8001)                │
+│       FastAPI · pyodbc · In-Memory TTL Cache Engine             │
 │   - Multi-database SQL Aggregation Engine                       │
-│   - 120s TTL Caching Layer (Sub-50ms Executive Response)        │
-│   - Resilient Failover (Zero-Interruption Dev/Offline Mode)     │
+│   - Eliminasi Transaksi Afiliasi Internal Otomatis              │
+│   - 120s TTL Caching Layer & Mode Fallback                      │
 └────────────────────────────────▲────────────────────────────────┘
                                  │ ODBC Driver 18
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│             Microsoft SQL Server 2022 (Port 1435)               │
-│   Host: 192.168.2.99,1435 | User: sa                            │
+│             Microsoft SQL Server (Port 1435 Dev / 1433 Prod)    │
+│   Host: 127.0.0.1,1435 | User: sa                               │
 │   - APIdb001, APIdb002, APIdb003 (PT Agri Prime Internasional)  │
 │   - AGCdb001, AGCdb002, AGCdb003 (PT Agrochem Mega Globalindo) │
 │   - AGFdb002, AGFdb003 (PT Agrofarm Nusa Raya)                 │

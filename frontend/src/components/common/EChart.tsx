@@ -25,6 +25,17 @@ export function EChart({
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const { theme } = useTheme();
 
+  // Keep fresh references to callbacks to prevent stale closures and unnecessary re-creations
+  const onEventsRef = useRef(onEvents);
+  useEffect(() => {
+    onEventsRef.current = onEvents;
+  }, [onEvents]);
+
+  const onChartReadyRef = useRef(onChartReady);
+  useEffect(() => {
+    onChartReadyRef.current = onChartReady;
+  }, [onChartReady]);
+
   // Initialize or recreate chart when theme changes
   useEffect(() => {
     if (!chartRef.current) return;
@@ -41,14 +52,18 @@ export function EChart({
     });
     chartInstance.current = chart;
 
-    if (onChartReady) {
-      onChartReady(chart);
+    if (onChartReadyRef.current) {
+      onChartReadyRef.current(chart);
     }
 
-    // Register event listeners
-    if (onEvents) {
-      Object.entries(onEvents).forEach(([eventName, handler]) => {
-        chart.on(eventName, handler);
+    // Register event listeners using current ref handler (no stale closure)
+    if (onEventsRef.current) {
+      Object.keys(onEventsRef.current).forEach((eventName) => {
+        chart.on(eventName, (params: any) => {
+          if (onEventsRef.current && onEventsRef.current[eventName]) {
+            onEventsRef.current[eventName](params);
+          }
+        });
       });
     }
 
@@ -63,7 +78,7 @@ export function EChart({
       chart.dispose();
       chartInstance.current = null;
     };
-  }, [theme, onChartReady]);
+  }, [theme]);
 
   // Update option when option or loading state changes
   useEffect(() => {

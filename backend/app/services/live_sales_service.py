@@ -50,17 +50,21 @@ def get_live_overview_from_sql(
 
     # 1. Determine active months dynamically from period/year
     if "Q1" in period:
-        active_months = list(range(1, 4))
+        active_months = [1, 2, 3]
     elif "Q2" in period:
-        active_months = list(range(4, 7))
+        active_months = [4, 5, 6]
     elif "Q3" in period:
-        active_months = list(range(7, 10))
+        active_months = [7, 8, 9]
     elif "Q4" in period:
-        active_months = list(range(10, 13))
-    elif "Jan–Des" in period or is_all_years or year < 2026:
+        active_months = [10, 11, 12]
+    elif "Jan–Des" in period or "Semua (12 Bln)" in period or is_all_years:
         active_months = list(range(1, 13))
-    else:  # Jan–Sep 2026 default
+    elif "Jan–Sep" in period or "YTD" in period:
         active_months = list(range(1, 10))
+    else:  # Jan–Sep default YTD
+        active_months = list(range(1, 10))
+
+    months_str = ", ".join(str(m) for m in active_months)
 
     monthly_data: Dict[str, float] = {month_names[m]: 0.0 for m in active_months}
     monthly_raw_data: Dict[str, float] = {month_names[m]: 0.0 for m in active_months}
@@ -106,7 +110,9 @@ def get_live_overview_from_sql(
                     FROM [{db_name}].[dbo].[SalesInvoiceHeaders] sih
                     JOIN [{db_name}].[dbo].[SalesInvoiceItems] sii ON sih.SalesInvoiceHeaderId = sii.SalesInvoiceHeaderId
                     LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                    WHERE YEAR(sih.TglFaktur) = {q_year} {affiliate_clause}
+                    WHERE YEAR(sih.TglFaktur) = {q_year} 
+                      AND MONTH(sih.TglFaktur) IN ({months_str})
+                      {affiliate_clause}
                     GROUP BY MONTH(sih.TglFaktur)
                     ORDER BY Bln
                 """
@@ -120,13 +126,15 @@ def get_live_overview_from_sql(
                         monthly_raw_data[month_names[bln_idx]] += raw_rp
                         total_revenue_real += raw_rp
 
-                # B. Top Customers
+                # B. Top Customers (Filtered by active months of the period)
                 sql_cust = f"""
                     SELECT TOP 10 ISNULL(c.NamaLgn, 'Lain-Lain') AS Customer, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
                     FROM [{db_name}].[dbo].[SalesInvoiceHeaders] sih
                     JOIN [{db_name}].[dbo].[SalesInvoiceItems] sii ON sih.SalesInvoiceHeaderId = sii.SalesInvoiceHeaderId
                     LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                    WHERE YEAR(sih.TglFaktur) = {q_year} {affiliate_clause}
+                    WHERE YEAR(sih.TglFaktur) = {q_year} 
+                      AND MONTH(sih.TglFaktur) IN ({months_str})
+                      {affiliate_clause}
                     GROUP BY c.NamaLgn
                     ORDER BY TotalOmzet DESC
                 """
@@ -136,7 +144,7 @@ def get_live_overview_from_sql(
                     val_m = round(float(r[1] or 0) / 1e9, 2)
                     top_customers_dict[c_name] = top_customers_dict.get(c_name, 0.0) + val_m
 
-                # C. Product Categories
+                # C. Product Categories (Filtered by active months of the period)
                 sql_cat = f"""
                     SELECT TOP 10 ISNULL(cat.NamaKategory, 'UMUM') AS Kategori, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
                     FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
@@ -145,7 +153,9 @@ def get_live_overview_from_sql(
                     LEFT JOIN [{db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
                     LEFT JOIN [{db_name}].[dbo].[InventoryCategories] cat ON inv.KodeKategory = cat.KodeKategory
                     LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                    WHERE YEAR(sih.TglFaktur) = {q_year} {affiliate_clause}
+                    WHERE YEAR(sih.TglFaktur) = {q_year} 
+                      AND MONTH(sih.TglFaktur) IN ({months_str})
+                      {affiliate_clause}
                     GROUP BY cat.NamaKategory
                     ORDER BY TotalOmzet DESC
                 """

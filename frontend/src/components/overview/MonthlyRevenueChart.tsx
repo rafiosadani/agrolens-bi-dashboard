@@ -436,17 +436,17 @@ export function MonthlyRevenueChart({
               </div>
             </div>
 
-            {/* Table Area: max-w-5xl, Compact Padding (py-2), Tanpa Scroll di Laptop Standar */}
+            {/* Table Area: Fully Visible, Zero Scrollbar, Harmonized Font */}
             <div className="px-6 py-1 overflow-y-auto flex-1">
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
                     <tr>
-                      <th className="py-2.5 px-4 whitespace-nowrap">Bulan Transaksi</th>
-                      <th className="py-2.5 px-4 text-right whitespace-nowrap">Omzet (IDR Miliar)</th>
-                      <th className="py-2.5 px-4 text-right whitespace-nowrap">Nilai Faktur Riil (Rupiah)</th>
-                      <th className="py-2.5 px-4 text-right whitespace-nowrap">% Kontribusi Total</th>
-                      <th className="py-2.5 px-4 text-center whitespace-nowrap">Status Performa</th>
+                      <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Omzet (IDR Miliar)</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">Nilai Faktur Riil (Rupiah)</th>
+                      <th className="py-2.5 px-3 text-right whitespace-nowrap">% Kontribusi Total</th>
+                      <th className="py-2.5 px-3 text-center whitespace-nowrap w-36">Status Performa</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
@@ -516,10 +516,10 @@ export function MonthlyRevenueChart({
                           maximumFractionDigits: 2,
                         })}
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
                         100,0%
                       </td>
-                      <td className="py-2.5 px-4 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap w-36">
                         ✓ Terverifikasi SQL
                       </td>
                     </tr>
@@ -529,26 +529,26 @@ export function MonthlyRevenueChart({
             </div>
 
             {/* Modal Footer Controls */}
-            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Cocokkan data tabel di atas dengan hasil query SQL Server di VS Code Anda.
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-2xl">
+                Data realisasi penjualan bulanan dikonsolidasikan secara real-time dari seluruh faktur penjualan komersial aktif (PT API, PT AMG, PT ANR) setelah eliminasi transaksi internal grup.
               </span>
 
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={handleCopyTable}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap select-none"
                 >
                   {copied ? (
                     <>
-                      <Check className="h-4 w-4 text-white" />
-                      <span>Berhasil Tersalin ke Clipboard!</span>
+                      <Check className="h-4 w-4 text-white shrink-0" />
+                      <span className="whitespace-nowrap font-medium">Berhasil Tersalin ke Clipboard!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="h-4 w-4 text-white" />
-                      <span>Salin Semua ke Excel (CSV)</span>
+                      <Copy className="h-4 w-4 text-white shrink-0" />
+                      <span className="whitespace-nowrap font-medium">Salin Semua ke Excel (CSV)</span>
                     </>
                   )}
                 </button>
@@ -556,7 +556,7 @@ export function MonthlyRevenueChart({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap select-none"
                 >
                   Tutup
                 </button>
