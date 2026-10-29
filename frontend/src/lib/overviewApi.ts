@@ -11,6 +11,13 @@ export interface MonthlyRevenueItem {
   revenue: number;
   raw_revenue?: number;
   label: string;
+  erp_revenue?: number;
+  erp_raw_revenue?: number;
+  fin_revenue?: number;
+  fin_raw_revenue?: number;
+  variance_m?: number;
+  variance_rp?: number;
+  status?: string;
 }
 
 export interface ProductTypeItem {

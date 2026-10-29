@@ -75,17 +75,30 @@ export function OverviewHeader({
   }, [selectedPeriod]);
 
   const buildPeriodString = (year: string, horizon: string) => {
-    if (horizon === "ALL") return `Jan–Des ${year}`;
+    if (horizon === "ALL") return year === "2026" ? `Jan–Sep ${year}` : `Jan–Des ${year}`;
     if (horizon === "YTD") return `Jan–Sep ${year}`;
     if (horizon === "Q1") return `Q1 (Jan–Mar) ${year}`;
     if (horizon === "Q2") return `Q2 (Apr–Jun) ${year}`;
     if (horizon === "Q3") return `Q3 (Jul–Sep) ${year}`;
-    if (horizon === "Q4") return `Q4 (Okt–Des) ${year}`;
-    return `Jan–Sep ${year}`;
+    if (horizon === "Q4") return year === "2026" ? `Jan–Sep ${year}` : `Q4 (Okt–Des) ${year}`;
+    return year === "2026" ? `Jan–Sep ${year}` : `Jan–Des ${year}`;
   };
 
   const handleYearChange = (newYear: string) => {
-    onPeriodChange(buildPeriodString(newYear, activeHorizon));
+    let nextHorizon = activeHorizon;
+    if (newYear === "2026") {
+      // 2026 adalah tahun berjalan: Q4 belum ada transaksi, default ke YTD (Jan–Sep)
+      if (activeHorizon === "Q4" || activeHorizon === "ALL") {
+        nextHorizon = "YTD";
+      }
+    } else {
+      // Tahun tutup buku (2025, 2024): default selalu full year (Semua 12 Bln)
+      // kecuali user sengaja sedang memilih kuartal spesifik (Q1, Q2, Q3)
+      if (activeHorizon === "YTD" || activeHorizon === "ALL") {
+        nextHorizon = "ALL";
+      }
+    }
+    onPeriodChange(buildPeriodString(newYear, nextHorizon));
   };
 
   const handleHorizonChange = (newHorizon: string) => {
@@ -209,7 +222,7 @@ export function OverviewHeader({
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
                   activeYear === String(year)
                     ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/80 dark:hover:bg-slate-700/70 active:scale-95"
                 }`}
               >
                 {year}
@@ -220,26 +233,44 @@ export function OverviewHeader({
           {/* 2. Rentang Waktu / Kuartal Pills */}
           <div className="flex items-center gap-0.5 bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-lg border border-slate-200/70 dark:border-slate-700/70 shadow-3xs">
             {[
-              { id: "ALL", label: "Semua (12 Bln)" },
+              { id: "ALL", label: activeYear === "2026" ? "Semua (9 Bln)" : "Semua (12 Bln)" },
               { id: "YTD", label: "YTD (Jan–Sep)" },
               { id: "Q1", label: "Q1" },
               { id: "Q2", label: "Q2" },
               { id: "Q3", label: "Q3" },
               { id: "Q4", label: "Q4" },
-            ].map((horizon) => (
-              <button
-                key={horizon.id}
-                type="button"
-                onClick={() => handleHorizonChange(horizon.id)}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                  activeHorizon === horizon.id
-                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                }`}
-              >
-                {horizon.label}
-              </button>
-            ))}
+            ].map((horizon) => {
+              const isQ4Disabled = activeYear === "2026" && horizon.id === "Q4";
+
+              if (isQ4Disabled) {
+                return (
+                  <button
+                    key={horizon.id}
+                    type="button"
+                    disabled
+                    title="Data Q4 2026 belum tersedia (Cut-off transaksi September 2026)"
+                    className="px-2.5 py-1.5 text-xs font-semibold rounded-md opacity-35 cursor-not-allowed text-slate-400 dark:text-slate-500 line-through select-none"
+                  >
+                    {horizon.label}
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={horizon.id}
+                  type="button"
+                  onClick={() => handleHorizonChange(horizon.id)}
+                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                    activeHorizon === horizon.id
+                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/80 dark:hover:bg-slate-700/70 active:scale-95"
+                  }`}
+                >
+                  {horizon.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* 3. Scope Entitas Perusahaan Dropdown (Nama Lengkap Resmi Tanpa Singkatan) */}

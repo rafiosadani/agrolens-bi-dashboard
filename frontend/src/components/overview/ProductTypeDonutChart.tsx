@@ -127,6 +127,7 @@ export function ProductTypeDonutChart({
     }));
 
     return {
+      backgroundColor: "transparent",
       tooltip: {
         show: false,
       },
@@ -365,7 +366,7 @@ export function ProductTypeDonutChart({
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Agregasi faktur komersial per kategori dari {databaseQueried} (Setelah eliminasi transaksi afiliasi)
+                  Agregasi transaksi penjualan per kategori dari {databaseQueried} (Sesuai klasifikasi master item ERP)
                 </p>
               </div>
 

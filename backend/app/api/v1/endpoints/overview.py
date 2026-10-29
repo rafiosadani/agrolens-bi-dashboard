@@ -110,7 +110,7 @@ def get_overview_summary(
                 year=target_year,
                 period=periode,
                 is_all_years=is_all_years,
-                eliminate_affiliate=True
+                eliminate_affiliate=False
             )
             if live_res.get("monthly_revenue_2026"):
                 monthly_revenue = live_res["monthly_revenue_2026"]

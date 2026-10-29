@@ -13,6 +13,11 @@ interface EChartProps {
   onEvents?: Record<string, (params: any) => void>;
 }
 
+// Register custom dark theme with transparent background so ECharts never injects #100c2a box
+echarts.registerTheme("transparent-theme", {
+  backgroundColor: "transparent",
+});
+
 export function EChart({
   option,
   style = { height: "100%", width: "100%" },
@@ -46,8 +51,8 @@ export function EChart({
       chartInstance.current = null;
     }
 
-    // Initialize with dark or default theme
-    const chart = echarts.init(chartRef.current, theme === "dark" ? "dark" : undefined, {
+    // Initialize with transparent theme so no dark square canvas box is rendered
+    const chart = echarts.init(chartRef.current, "transparent-theme", {
       renderer: "canvas",
     });
     chartInstance.current = chart;
@@ -94,12 +99,16 @@ export function EChart({
     } else {
       chartInstance.current.hideLoading();
       try {
-        chartInstance.current.setOption(option, { notMerge: true });
+        const safeOption = {
+          ...option,
+          backgroundColor: "transparent",
+        };
+        chartInstance.current.setOption(safeOption, { notMerge: true });
       } catch (err) {
         console.error("[EChart] Error setting chart option:", err);
       }
     }
   }, [option, loading, theme]);
 
-  return <div ref={chartRef} style={style} className={className} />;
+  return <div ref={chartRef} style={{ ...style, backgroundColor: "transparent" }} className={className} />;
 }

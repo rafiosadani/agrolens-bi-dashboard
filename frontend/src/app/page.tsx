@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { OverviewHeader, ReportTab } from "@/components/overview/OverviewHeader";
 import { OverviewView } from "@/components/overview/OverviewView";
@@ -65,6 +65,11 @@ function DashboardContent() {
   const [selectedEntity, setSelectedEntity] = useState<string>(() => {
     return entityParam || DEFAULT_ENTITY;
   });
+
+  const activeYearNumber = useMemo(() => {
+    const match = selectedPeriod.match(/\b(202\d)\b/);
+    return match ? parseInt(match[1], 10) : 2025;
+  }, [selectedPeriod]);
 
   const [databaseQueried, setDatabaseQueried] = useState<string>("APIdb003, AGCdb003, AGFdb003");
   const [availableYears, setAvailableYears] = useState<number[]>([2026, 2025, 2024]);
