@@ -41,6 +41,15 @@ export interface TopCustomerItem {
   label: string;
 }
 
+export interface AffiliateBreakdownItem {
+  entity_code: string;
+  entity_name: string;
+  amount: number;
+  formatted_rp: string;
+  percentage: number;
+  color?: string;
+}
+
 export interface OverviewSummaryData {
   period: string;
   entity: string;
@@ -55,6 +64,7 @@ export interface OverviewSummaryData {
     kesesuaian_rkap: KpiMetricItem;
   };
   monthly_revenue_2026: MonthlyRevenueItem[];
+  affiliate_breakdown?: AffiliateBreakdownItem[];
   revenue_by_product_type: {
     total_formatted: string;
     total_raw?: number;
@@ -98,6 +108,7 @@ export const INITIAL_OVERVIEW_DATA: OverviewSummaryData = {
     },
   },
   monthly_revenue_2026: [],
+  affiliate_breakdown: [],
   revenue_by_product_type: {
     total_formatted: "0,0 M",
     items: [],

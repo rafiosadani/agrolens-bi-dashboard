@@ -93,6 +93,7 @@ def get_overview_summary(
     is_live = False
     db_queried = None
     available_years = [2026, 2025, 2024]
+    affiliate_breakdown = []
 
     # Check if "Semua Tahun" is requested or extract target year
     is_all_years = "Semua Tahun" in periode or "All Years" in periode
@@ -116,6 +117,8 @@ def get_overview_summary(
             )
             if live_res.get("monthly_revenue_2026"):
                 monthly_revenue = live_res["monthly_revenue_2026"]
+            if live_res.get("affiliate_breakdown") is not None:
+                affiliate_breakdown = live_res["affiliate_breakdown"]
             if live_res.get("top_5_customers"):
                 top_customers = live_res["top_5_customers"]
             if live_res.get("revenue_by_product_type"):
@@ -154,6 +157,7 @@ def get_overview_summary(
         "available_years": available_years,
         "kpis": base_kpis,
         "monthly_revenue_2026": monthly_revenue,
+        "affiliate_breakdown": affiliate_breakdown,
         "revenue_by_product_type": revenue_by_jenis,
         "competitor_position": competitor_position,
         "top_5_customers": top_customers

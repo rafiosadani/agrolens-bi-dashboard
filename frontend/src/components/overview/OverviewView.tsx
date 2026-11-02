@@ -166,6 +166,7 @@ export function OverviewView({
             period={data.period || period}
             segment={segment}
             databaseQueried={data.database_queried}
+            affiliateBreakdown={data.affiliate_breakdown}
           />
         </div>
 

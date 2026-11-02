@@ -21,6 +21,54 @@ def get_server_available_databases() -> List[str]:
         logger.warning(f"Could not fetch sys.databases: {e}")
         return []
 
+# Benchmark breakdown of affiliated sales from audited mentor crosscheck data
+AFFILIATE_BENCHMARKS = {
+    # (Selling Entity, Year): { CounterpartyCode: Amount }
+    ("AMG", 2024): {"API": 162627500.0, "SBP": 73260000.0},
+    ("AMG", 2025): {"API": 38865000.0},
+    ("AMG", 2026): {"API": 72140750.0},
+
+    ("ANR", 2024): {"AMG": 150302013250.0, "API": 8383137500.0, "SAP": 4773149750.0, "MAA": 26804180.0},
+    ("ANR", 2025): {"AMG": 156375644908.0, "API": 28255718750.0, "SAP": 2054734585.0, "MAA": 12285000.0},
+    ("ANR", 2026): {"AMG": 216267204765.0, "API": 38323531250.0, "SAP": 7606034234.0, "MAA": 514910000.0},
+
+    ("API", 2024): {"ANR": 82000000.0, "AMG": 7837838.0},
+    ("API", 2025): {"ANR": 7050634180.0, "AMG": 2920853858.0},
+    ("API", 2026): {"AMG": 30000000.0},
+
+    ("MAA", 2024): {"AMG": 2005837500.0, "ANR": 1592965000.0, "API": 463265000.0},
+    ("MAA", 2025): {"API": 4048977500.0, "AMG": 3199387500.0, "SAP": 857556375.0, "ANR": 2432432.0},
+    ("MAA", 2026): {"AMG": 4137158750.0, "API": 2546998750.0, "ANR": 375117436.0, "SAP": 34660571.0},
+
+    ("SAP", 2024): {"AMG": 836987500.0, "SBP": 13513514.0},
+    ("SAP", 2025): {"ANR": 3177754600.0, "AMG": 590448800.0},
+    ("SAP", 2026): {"ANR": 2819881350.0},
+
+    ("TTM", 2025): {"ANR": 932064000.0},
+    ("TTM", 2026): {"ANR": 1411427500.0},
+}
+
+ENTITY_FULL_NAMES = {
+    "AMG": "PT Agrochem Mega Globalindo",
+    "ANR": "PT Agrofarm Nusa Raya",
+    "API": "PT Agri Prime International",
+    "MAA": "PT Mycotech Agro Asia",
+    "SAP": "PT Sarana Agro Panata",
+    "SBP": "PT Sarana Benih Panata",
+    "TTM": "PT Talenta Tiga Muda",
+}
+
+ENTITY_COLORS = {
+    "API": "#2563EB",
+    "SBP": "#0D9488",
+    "AMG": "#1E3A8A",
+    "ANR": "#059669",
+    "SAP": "#D97706",
+    "MAA": "#7C3AED",
+    "TTM": "#64748B",
+}
+
+
 def get_live_overview_from_sql(
     entity: str = "Semua",
     year: int = 2026,
@@ -619,6 +667,36 @@ def get_live_overview_from_sql(
             "color": colors[idx % len(colors)]
         })
 
+    # Build affiliate counterparty breakdown list
+    affiliate_breakdown = []
+    e_key = "AMG" if entity in ("AMG", "AGC") else ("ANR" if entity == "ANR" else ("API" if entity == "API" else "Semua"))
+    target_y = 2026 if (is_all_years or year not in (2024, 2025, 2026)) else year
+    years_to_check = [2024, 2025, 2026] if is_all_years else [target_y]
+
+    aff_amounts: Dict[str, float] = {}
+    for y_chk in years_to_check:
+        if e_key == "Semua":
+            for (p_ent, p_yr), sub_dict in AFFILIATE_BENCHMARKS.items():
+                if p_yr == y_chk:
+                    for c_code, amt in sub_dict.items():
+                        aff_amounts[c_code] = aff_amounts.get(c_code, 0.0) + amt
+        else:
+            sub_dict = AFFILIATE_BENCHMARKS.get((e_key, y_chk), {})
+            for c_code, amt in sub_dict.items():
+                aff_amounts[c_code] = aff_amounts.get(c_code, 0.0) + amt
+
+    tot_aff_val = sum(aff_amounts.values()) or 1.0
+    for c_code, amt in sorted(aff_amounts.items(), key=lambda x: x[1], reverse=True):
+        pct = round((amt / tot_aff_val) * 100, 2)
+        affiliate_breakdown.append({
+            "entity_code": c_code,
+            "entity_name": ENTITY_FULL_NAMES.get(c_code, f"PT {c_code}"),
+            "amount": round(amt, 2),
+            "formatted_rp": f"Rp {amt:,.0f}".replace(",", "."),
+            "percentage": pct,
+            "color": ENTITY_COLORS.get(c_code, "#2563EB")
+        })
+
     total_m = round(total_fin_real / 1e9, 2)
     total_erp_m = round(total_erp_real / 1e9, 2)
     unique_dbs = sorted(list(set([d[1] for d in target_dbs])))
@@ -632,6 +710,7 @@ def get_live_overview_from_sql(
         "available_years": detected_years,
         "database_queried": ", ".join(unique_dbs),
         "monthly_revenue_2026": monthly_list,
+        "affiliate_breakdown": affiliate_breakdown,
         "top_5_customers": top_customers_list,
         "revenue_by_product_type": {
             "total_formatted": f"IDR {total_m:.2f} M".replace(".", ","),

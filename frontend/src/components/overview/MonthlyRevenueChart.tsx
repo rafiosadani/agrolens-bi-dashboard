@@ -3,7 +3,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { EChart } from "@/components/common/EChart";
-import { MonthlyRevenueItem } from "@/lib/overviewApi";
 import { useTheme } from "@/context/ThemeContext";
 import {
   Table2,
@@ -17,14 +16,17 @@ import {
   Database,
   Scale,
   Filter,
+  Building2,
 } from "lucide-react";
 import * as echarts from "echarts";
+import { MonthlyRevenueItem, AffiliateBreakdownItem } from "@/lib/overviewApi";
 
 interface MonthlyRevenueChartProps {
   data: MonthlyRevenueItem[];
   period?: string;
   segment?: string;
   databaseQueried?: string;
+  affiliateBreakdown?: AffiliateBreakdownItem[];
 }
 
 const FULL_MONTH_NAMES: Record<string, string> = {
@@ -47,6 +49,7 @@ export function MonthlyRevenueChart({
   period = "Jan–Sep 2026",
   segment = "all",
   databaseQueried = "APIdb, AGCdb, AGFdb",
+  affiliateBreakdown = [],
 }: MonthlyRevenueChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -60,6 +63,10 @@ export function MonthlyRevenueChart({
     if (segment === "affiliate") return "Afiliasi Antar-Grup";
     return "Semua Penjualan (Gross)";
   }, [segment]);
+
+  const totalAffiliateAmount = useMemo(() => {
+    return affiliateBreakdown.reduce((sum, item) => sum + item.amount, 0);
+  }, [affiliateBreakdown]);
 
   useEffect(() => {
     setMounted(true);
@@ -886,6 +893,75 @@ export function MonthlyRevenueChart({
                   </>
                 )}
               </div>
+
+              {/* Intercompany Counterparty Breakdown Mini-Panel (Option B: Active in Affiliate Segment) */}
+              {segment === "affiliate" && affiliateBreakdown && affiliateBreakdown.length > 0 && (
+                <div className="mx-6 mb-3 p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 shadow-3xs animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
+                        <Building2 className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                        Rincian Entitas Lawan Transaksi (Afiliasi Antar-Grup {displayYear})
+                      </span>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                        {affiliateBreakdown.length} Entitas Terdaftar
+                      </span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-purple-800 dark:text-purple-300">
+                      Total Nilai Afiliasi: Rp {Math.round(totalAffiliateAmount).toLocaleString("id-ID")}
+                    </span>
+                  </div>
+
+                  {/* Dynamic Cards per Counterparty Entity */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {affiliateBreakdown.map((item) => (
+                      <div
+                        key={item.entity_code}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-3xs hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span
+                              className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
+                              style={{ backgroundColor: item.color || "#2563EB" }}
+                            >
+                              {item.entity_code}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={item.entity_name}>
+                              {item.entity_name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
+                            {item.formatted_rp}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            {item.percentage.toFixed(1).replace(".", ",")}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Subtle Intercompany Notice for Tab 3 Recon when not in affiliate segment */}
+              {segment !== "affiliate" && activeModalTab === "recon" && affiliateBreakdown && affiliateBreakdown.length > 0 && (
+                <div className="mx-6 mb-2.5 px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">ℹ Catatan Afiliasi:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      Terdapat transaksi afiliasi <strong>Rp {Math.round(totalAffiliateAmount).toLocaleString("id-ID")}</strong> ({affiliateBreakdown.map(i => `${i.entity_code} ${i.percentage.toFixed(0)}%`).join(" · ")}) untuk eliminasi grup.
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800 shrink-0 w-fit">
+                    Gunakan filter &quot;Afiliasi Antar-Grup&quot; untuk isolasi
+                  </span>
+                </div>
+              )}
 
               {/* Table Area: Fully Visible, Zero Scrollbar Disruption, Harmonized Font */}
               <div className="px-6 py-1 overflow-y-auto flex-1">
