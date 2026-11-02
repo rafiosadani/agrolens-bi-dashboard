@@ -16,7 +16,6 @@ import {
   Database,
   Scale,
   Filter,
-  Building2,
 } from "lucide-react";
 import * as echarts from "echarts";
 import { MonthlyRevenueItem, AffiliateBreakdownItem } from "@/lib/overviewApi";
@@ -134,17 +133,44 @@ export function MonthlyRevenueChart({
 
   const maxFinItem: MonthlyRevenueItem = useMemo(() => {
     if (!data.length) return { month: "-", revenue: 0, label: "0" };
-    return [...data].sort(
-      (a, b) => (b.fin_revenue ?? b.revenue ?? 0) - (a.fin_revenue ?? a.revenue ?? 0)
-    )[0];
+    return [...data].sort((a, b) => {
+      const bRaw =
+        b.fin_raw_revenue ??
+        (b.raw_revenue != null && b.raw_revenue > 0
+          ? b.raw_revenue
+          : (b.fin_revenue ?? b.revenue ?? 0) * 1e9);
+      const aRaw =
+        a.fin_raw_revenue ??
+        (a.raw_revenue != null && a.raw_revenue > 0
+          ? a.raw_revenue
+          : (a.fin_revenue ?? a.revenue ?? 0) * 1e9);
+      return bRaw - aRaw;
+    })[0];
   }, [data]);
 
   const minFinItem: MonthlyRevenueItem = useMemo(() => {
-    const valid = data.filter((d) => (d.fin_revenue ?? d.revenue ?? 0) > 0);
+    const valid = data.filter((d) => {
+      const raw =
+        d.fin_raw_revenue ??
+        (d.raw_revenue != null && d.raw_revenue > 0
+          ? d.raw_revenue
+          : (d.fin_revenue ?? d.revenue ?? 0) * 1e9);
+      return raw > 0;
+    });
     if (!valid.length) return { month: "-", revenue: 0, label: "0" };
-    return [...valid].sort(
-      (a, b) => (a.fin_revenue ?? a.revenue ?? 0) - (b.fin_revenue ?? b.revenue ?? 0)
-    )[0];
+    return [...valid].sort((a, b) => {
+      const aRaw =
+        a.fin_raw_revenue ??
+        (a.raw_revenue != null && a.raw_revenue > 0
+          ? a.raw_revenue
+          : (a.fin_revenue ?? a.revenue ?? 0) * 1e9);
+      const bRaw =
+        b.fin_raw_revenue ??
+        (b.raw_revenue != null && b.raw_revenue > 0
+          ? b.raw_revenue
+          : (b.fin_revenue ?? b.revenue ?? 0) * 1e9);
+      return aRaw - bRaw;
+    })[0];
   }, [data]);
 
   // 2. ERP Layer (Murni) Statistics
@@ -169,9 +195,44 @@ export function MonthlyRevenueChart({
 
   const maxErpItem: MonthlyRevenueItem = useMemo(() => {
     if (!data.length) return { month: "-", revenue: 0, label: "0" };
-    return [...data].sort(
-      (a, b) => (b.erp_revenue ?? b.revenue ?? 0) - (a.erp_revenue ?? a.revenue ?? 0)
-    )[0];
+    return [...data].sort((a, b) => {
+      const bRaw =
+        b.erp_raw_revenue ??
+        (b.raw_revenue != null && b.raw_revenue > 0
+          ? b.raw_revenue
+          : (b.erp_revenue ?? b.revenue ?? 0) * 1e9);
+      const aRaw =
+        a.erp_raw_revenue ??
+        (a.raw_revenue != null && a.raw_revenue > 0
+          ? a.raw_revenue
+          : (a.erp_revenue ?? a.revenue ?? 0) * 1e9);
+      return bRaw - aRaw;
+    })[0];
+  }, [data]);
+
+  const minErpItem: MonthlyRevenueItem = useMemo(() => {
+    const valid = data.filter((d) => {
+      const raw =
+        d.erp_raw_revenue ??
+        (d.raw_revenue != null && d.raw_revenue > 0
+          ? d.raw_revenue
+          : (d.erp_revenue ?? d.revenue ?? 0) * 1e9);
+      return raw > 0;
+    });
+    if (!valid.length) return { month: "-", revenue: 0, label: "0" };
+    return [...valid].sort((a, b) => {
+      const aRaw =
+        a.erp_raw_revenue ??
+        (a.raw_revenue != null && a.raw_revenue > 0
+          ? a.raw_revenue
+          : (a.erp_revenue ?? a.revenue ?? 0) * 1e9);
+      const bRaw =
+        b.erp_raw_revenue ??
+        (b.raw_revenue != null && b.raw_revenue > 0
+          ? b.raw_revenue
+          : (b.erp_revenue ?? b.revenue ?? 0) * 1e9);
+      return aRaw - bRaw;
+    })[0];
   }, [data]);
 
   // 3. Reconciliation & Variance Statistics
@@ -452,15 +513,13 @@ export function MonthlyRevenueChart({
             maximumFractionDigits: 2,
           });
           const pct =
-            totalFinRevenue > 0
-              ? (((d.fin_revenue ?? d.revenue ?? 0) / totalFinRevenue) * 100).toFixed(1)
+            totalFinRawRevenue > 0
+              ? ((rawVal / totalFinRawRevenue) * 100).toFixed(1)
               : "0,0";
-          const status =
-            (d.fin_revenue ?? d.revenue ?? 0) === maxFinItem.revenue
-              ? "Puncak ★"
-              : (d.fin_revenue ?? d.revenue ?? 0) === minFinItem.revenue
-              ? "Terendah"
-              : "Stabil";
+          const isMax = maxFinItem.month === d.month && rawVal > 0;
+          const isMin =
+            minFinItem.month === d.month && rawVal > 0 && maxFinItem.month !== minFinItem.month;
+          const status = isMax ? "Puncak ★" : isMin ? "Terendah" : "Stabil";
           return `${idx + 1}\t${fullMonth} ${displayYear}\tIDR ${valM} M\tRp ${formattedRp}\t${pct}%\t${status}`;
         })
         .join("\n");
@@ -481,13 +540,13 @@ export function MonthlyRevenueChart({
             maximumFractionDigits: 2,
           });
           const pct =
-            totalErpRevenue > 0
-              ? (((d.erp_revenue ?? d.revenue ?? 0) / totalErpRevenue) * 100).toFixed(1)
+            totalErpRawRevenue > 0
+              ? ((rawVal / totalErpRawRevenue) * 100).toFixed(1)
               : "0,0";
-          const status =
-            (d.erp_revenue ?? d.revenue ?? 0) === maxErpItem.revenue
-              ? "Puncak ★"
-              : "Stabil";
+          const isMax = maxErpItem.month === d.month && rawVal > 0;
+          const isMin =
+            minErpItem.month === d.month && rawVal > 0 && maxErpItem.month !== minErpItem.month;
+          const status = isMax ? "Puncak ★" : isMin ? "Terendah" : "Stabil";
           return `${idx + 1}\t${fullMonth} ${displayYear}\tIDR ${valM} M\tRp ${formattedRp}\t${pct}%\t${status}`;
         })
         .join("\n");
@@ -581,9 +640,9 @@ export function MonthlyRevenueChart({
               </span>
               <span
                 title={`Filter Segmentasi: ${segmentLabel}`}
-                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shrink-0"
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shrink-0"
               >
-                <Filter className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                <Filter className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                 {segmentLabel}
               </span>
             </div>
@@ -641,8 +700,8 @@ export function MonthlyRevenueChart({
                     <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                       Live SQL (Konsolidasi {displayYear})
                     </span>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
-                      <Filter className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                      <Filter className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                       {segmentLabel}
                     </span>
                     <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -668,9 +727,9 @@ export function MonthlyRevenueChart({
                 </button>
               </div>
 
-              {/* 3-Tab Layer Navigation Bar (Sequential: Tab 1 -> Tab 2 -> Tab 3 in a sleek single-line container) */}
-              <div className="px-6 pt-3 pb-1 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-x-auto">
-                <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80 w-fit shrink-0">
+              {/* 3-Tab Layer Navigation Bar (Fixed, No Horizontal Scroll) */}
+              <div className="px-6 pt-3 pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden">
+                <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80 w-fit">
                   {/* Tab 1: Data Keuangan (Default Active) */}
                   <button
                     type="button"
@@ -894,22 +953,19 @@ export function MonthlyRevenueChart({
                 )}
               </div>
 
-              {/* Intercompany Counterparty Breakdown Mini-Panel (Option B: Active in Affiliate Segment) */}
+              {/* Intercompany Counterparty Breakdown Mini-Panel (Agrofarm Brand Palette, Zero Icon Clutter) */}
               {segment === "affiliate" && affiliateBreakdown && affiliateBreakdown.length > 0 && (
-                <div className="mx-6 mb-3 p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/40 border border-purple-200/80 dark:border-purple-800/60 shadow-3xs animate-in fade-in duration-200">
+                <div className="mx-6 mb-3 p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/90 dark:border-slate-700/80 shadow-3xs animate-in fade-in duration-200">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                        <Building2 className="h-3.5 w-3.5" />
-                      </div>
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                         Rincian Entitas Lawan Transaksi (Afiliasi Antar-Grup {displayYear})
                       </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-slate-700/80 text-slate-700 dark:text-slate-300">
                         {affiliateBreakdown.length} Entitas Terdaftar
                       </span>
                     </div>
-                    <span className="text-xs font-mono font-bold text-purple-800 dark:text-purple-300">
+                    <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400">
                       Total Nilai Afiliasi: Rp {Math.round(totalAffiliateAmount).toLocaleString("id-ID")}
                     </span>
                   </div>
@@ -919,13 +975,13 @@ export function MonthlyRevenueChart({
                     {affiliateBreakdown.map((item) => (
                       <div
                         key={item.entity_code}
-                        className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-3xs hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 shadow-3xs hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
                       >
                         <div className="min-w-0 pr-2">
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <span
                               className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                              style={{ backgroundColor: item.color || "#2563EB" }}
+                              style={{ backgroundColor: item.color || "#059669" }}
                             >
                               {item.entity_code}
                             </span>
@@ -938,7 +994,7 @@ export function MonthlyRevenueChart({
                           </span>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                          <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70">
                             {item.percentage.toFixed(1).replace(".", ",")}%
                           </span>
                         </div>
@@ -948,18 +1004,24 @@ export function MonthlyRevenueChart({
                 </div>
               )}
 
-              {/* Subtle Intercompany Notice for Tab 3 Recon when not in affiliate segment */}
+              {/* Stacked Group Row: Catatan Transaksi Afiliasi (Zero Emoji, Clean Enterprise Styling) */}
               {segment !== "affiliate" && activeModalTab === "recon" && affiliateBreakdown && affiliateBreakdown.length > 0 && (
-                <div className="mx-6 mb-2.5 px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-purple-600 dark:text-purple-400 font-bold shrink-0">ℹ Catatan Afiliasi:</span>
-                    <span className="text-slate-600 dark:text-slate-300">
-                      Terdapat transaksi afiliasi <strong>Rp {Math.round(totalAffiliateAmount).toLocaleString("id-ID")}</strong> ({affiliateBreakdown.map(i => `${i.entity_code} ${i.percentage.toFixed(0)}%`).join(" · ")}) untuk eliminasi grup.
+                <div className="mx-6 mb-3 p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 shadow-3xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200/60 dark:border-slate-700/60">
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                      Catatan Transaksi Afiliasi
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 w-fit">
+                      Gunakan filter &quot;Afiliasi Antar-Grup&quot; untuk isolasi
                     </span>
                   </div>
-                  <span className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800 shrink-0 w-fit">
-                    Gunakan filter &quot;Afiliasi Antar-Grup&quot; untuk isolasi
-                  </span>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                    Terdapat transaksi afiliasi sebesar{" "}
+                    <strong className="text-slate-900 dark:text-slate-100 font-mono">
+                      Rp {Math.round(totalAffiliateAmount).toLocaleString("id-ID")}
+                    </strong>{" "}
+                    ({affiliateBreakdown.map((i) => `${i.entity_code} ${i.percentage.toFixed(0)}%`).join(" · ")}) yang perlu dieliminasi pada pembukuan konsolidasi grup holding.
+                  </p>
                 </div>
               )}
 
@@ -1132,18 +1194,20 @@ export function MonthlyRevenueChart({
                         {data.map((item, idx) => {
                           const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
                           const finVal = item.fin_revenue ?? item.revenue ?? 0;
-                          const isMax = finVal === maxFinItem.revenue && maxFinItem.revenue > 0;
-                          const isMin = finVal === minFinItem.revenue && minFinItem.revenue > 0;
-                          const pct =
-                            totalFinRevenue > 0
-                              ? ((finVal / totalFinRevenue) * 100).toFixed(1)
-                              : "0,0";
-
                           const rawVal =
                             item.fin_raw_revenue ??
                             (item.raw_revenue != null && item.raw_revenue > 0
                               ? item.raw_revenue
                               : finVal * 1e9);
+                          const isMax = maxFinItem.month === item.month && rawVal > 0;
+                          const isMin =
+                            minFinItem.month === item.month &&
+                            rawVal > 0 &&
+                            maxFinItem.month !== minFinItem.month;
+                          const pct =
+                            totalFinRawRevenue > 0
+                              ? ((rawVal / totalFinRawRevenue) * 100).toFixed(1)
+                              : "0,0";
                           const formattedRp = Number(rawVal).toLocaleString("id-ID", {
                             minimumFractionDigits: rawVal % 1 === 0 ? 0 : 2,
                             maximumFractionDigits: 2,
@@ -1228,17 +1292,20 @@ export function MonthlyRevenueChart({
                         {data.map((item, idx) => {
                           const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
                           const erpVal = item.erp_revenue ?? item.revenue ?? 0;
-                          const isMax = erpVal === maxErpItem.revenue && maxErpItem.revenue > 0;
-                          const pct =
-                            totalErpRevenue > 0
-                              ? ((erpVal / totalErpRevenue) * 100).toFixed(1)
-                              : "0,0";
-
                           const rawVal =
                             item.erp_raw_revenue ??
                             (item.raw_revenue != null && item.raw_revenue > 0
                               ? item.raw_revenue
                               : erpVal * 1e9);
+                          const isMax = maxErpItem.month === item.month && rawVal > 0;
+                          const isMin =
+                            minErpItem.month === item.month &&
+                            rawVal > 0 &&
+                            maxErpItem.month !== minErpItem.month;
+                          const pct =
+                            totalErpRawRevenue > 0
+                              ? ((rawVal / totalErpRawRevenue) * 100).toFixed(1)
+                              : "0,0";
                           const formattedRp = Number(rawVal).toLocaleString("id-ID", {
                             minimumFractionDigits: rawVal % 1 === 0 ? 0 : 2,
                             maximumFractionDigits: 2,
@@ -1268,6 +1335,10 @@ export function MonthlyRevenueChart({
                                 {isMax ? (
                                   <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                                     Puncak ★
+                                  </span>
+                                ) : isMin ? (
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                    Terendah
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 text-[10px]">Stabil</span>
