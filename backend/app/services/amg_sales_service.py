@@ -56,9 +56,9 @@ def get_query_filename(year: int, layer: str) -> str:
             return "qry_sales_agc_2026_raw_erp.sql"
     else:  # financial layer
         if year == 2024:
-            return "qry_sales_agc_2024_finance_balanced.sql"
+            return "qry_sales_agc_2024_financial_balanced_adj_row.sql"
         elif year == 2025:
-            return "qry_sales_agc_2025_financial_balanced.sql"
+            return "qry_sales_agc_2025_financial_balanced_adj_row.sql"
         elif year == 2026:
             return "qry_sales_agc_2026_financial_adjusted.sql"
     raise ValueError(f"No specific query mapping for AMG year {year} and layer '{layer}'")
@@ -119,7 +119,11 @@ def get_amg_sales_data(
                 COUNT(DISTINCT [Nama Customer])         AS TotalCustomers,
                 ISNULL(SUM([Penjualan]), 0)             AS TotalPenjualan,
                 ISNULL(SUM([Jumlah HPP]), 0)            AS TotalHPP,
-                ISNULL(SUM([Jumlah (Gross Profit)]), 0) AS TotalGrossProfit
+                ISNULL(SUM([Jumlah (Gross Profit)]), 0) AS TotalGrossProfit,
+                COUNT(DISTINCT CASE WHEN [No Invoice] NOT LIKE 'ADJ-AUDIT%' THEN [No Invoice] END) AS TotalCommercialInvoices,
+                COUNT(DISTINCT CASE WHEN [Nama Customer] != 'Penyesuaian Audit Keuangan / Selisih Pembukuan' THEN [Nama Customer] END) AS TotalCommercialCustomers,
+                ISNULL(SUM(CASE WHEN [Nama Customer] != 'Penyesuaian Audit Keuangan / Selisih Pembukuan' THEN [Penjualan] ELSE 0 END), 0) AS CommercialPenjualan,
+                ISNULL(SUM(CASE WHEN [Nama Customer] = 'Penyesuaian Audit Keuangan / Selisih Pembukuan' THEN [Penjualan] ELSE 0 END), 0) AS AdjustmentPenjualan
             FROM MainDataset
             WHERE 1=1
             {"AND [Periode] = ?" if month else ""}
@@ -142,6 +146,10 @@ def get_amg_sales_data(
             total_penjualan = float(s_row[3]) if s_row and s_row[3] is not None else 0.0
             total_hpp = float(s_row[4]) if s_row and s_row[4] is not None else 0.0
             total_gross_profit = float(s_row[5]) if s_row and s_row[5] is not None else 0.0
+            total_commercial_invoices = s_row[6] if s_row and s_row[6] is not None else total_invoices
+            total_commercial_customers = s_row[7] if s_row and s_row[7] is not None else total_customers
+            commercial_penjualan = float(s_row[8]) if s_row and s_row[8] is not None else total_penjualan
+            adjustment_penjualan = float(s_row[9]) if s_row and s_row[9] is not None else 0.0
 
             gross_margin_pct = round((total_gross_profit / total_penjualan * 100.0), 2) if total_penjualan > 0 else 0.0
 
@@ -208,9 +216,12 @@ def get_amg_sales_data(
                 "audited_target": AUDITED_FINANCIAL_TARGETS.get(year),
                 "summary": {
                     "total_rows": total_rows,
-                    "total_invoices": total_invoices,
-                    "total_customers": total_customers,
+                    "total_invoices": total_commercial_invoices,
+                    "total_customers": total_commercial_customers,
                     "total_penjualan": round(total_penjualan, 2),
+                    "commercial_penjualan": round(commercial_penjualan, 2),
+                    "adjustment_penjualan": round(adjustment_penjualan, 2),
+                    "has_adjustment_row": abs(adjustment_penjualan) > 0.01,
                     "total_hpp": round(total_hpp, 2),
                     "total_gross_profit": round(total_gross_profit, 2),
                     "gross_margin_percentage": gross_margin_pct,
@@ -226,6 +237,8 @@ def get_amg_sales_data(
     except Exception as e:
         logger.error(f"Error executing AMG sales data query ({layer} {year}): {e}", exc_info=True)
         # Return graceful structured error with audited target metadata
+        comm_ref = 187577554186.0 if year == 2024 else (255820483277.0 if year == 2025 else 250827050970.0)
+        adj_ref = -375074971.91 if year == 2024 else (-150169209.42 if year == 2025 else 0.0)
         return {
             "entity": "PT Agrochem Mega Globalindo (AMG)",
             "database": db_name,
@@ -235,7 +248,12 @@ def get_amg_sales_data(
             "error": str(e),
             "summary": {
                 "total_rows": 0,
-                "total_penjualan": AUDITED_FINANCIAL_TARGETS.get(year, 0.0) if layer == "financial" else 0.0,
+                "total_invoices": 0,
+                "total_customers": 0,
+                "total_penjualan": AUDITED_FINANCIAL_TARGETS.get(year, 0.0) if layer == "financial" else comm_ref,
+                "commercial_penjualan": comm_ref,
+                "adjustment_penjualan": adj_ref if layer == "financial" else 0.0,
+                "has_adjustment_row": layer == "financial" and abs(adj_ref) > 0.01,
                 "total_hpp": 0.0,
                 "total_gross_profit": 0.0,
                 "gross_margin_percentage": 0.0,

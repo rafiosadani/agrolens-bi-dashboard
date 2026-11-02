@@ -126,7 +126,9 @@ Base AS (
             WHEN r.NamaCustomer LIKE '%Agrofarm Nusa Raya%' THEN 'ANR'
             WHEN r.NamaCustomer LIKE '%Agri Prime International%' THEN 'API'
             WHEN r.NamaCustomer LIKE '%Mycotech Agro Asia%' THEN 'MAA'
-            WHEN r.NamaCustomer LIKE '%Sarana Benih Panata%' THEN 'SAP'
+            WHEN r.NamaCustomer LIKE '%Sarana Agro Panata%' THEN 'SAP'
+            WHEN r.NamaCustomer LIKE '%Sarana Benih Panata%' THEN 'SBP'
+            WHEN r.NamaCustomer LIKE '%Talenta Tiga Muda%' THEN 'TTM'
             ELSE 'OTH'
         END                                                     AS [ELIMINASI],
         

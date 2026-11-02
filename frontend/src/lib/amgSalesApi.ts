@@ -8,6 +8,9 @@ export interface AmgSalesSummary {
   total_hpp: number;
   total_gross_profit: number;
   gross_margin_percentage: number;
+  commercial_penjualan?: number;
+  adjustment_penjualan?: number;
+  has_adjustment_row?: boolean;
 }
 
 export interface AmgSalesItem {

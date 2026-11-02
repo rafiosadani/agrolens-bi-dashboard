@@ -20,6 +20,7 @@ const VALID_TABS: ReportTab[] = [
 const DEFAULT_TAB: ReportTab = "overview";
 const DEFAULT_PERIOD = "Jan–Sep 2026";
 const DEFAULT_ENTITY = "Semua";
+const DEFAULT_SEGMENT = "all";
 
 // Aliases to gracefully support legacy or alternate slugs in URLs
 const TAB_ALIASES: Record<string, ReportTab> = {
@@ -53,6 +54,7 @@ function DashboardContent() {
   const tabParam = searchParams.get("tab");
   const periodParam = searchParams.get("period");
   const entityParam = searchParams.get("entity");
+  const segmentParam = searchParams.get("segment");
 
   const [activeTab, setActiveTab] = useState<ReportTab>(() => {
     return resolveTab(tabParam);
@@ -64,6 +66,10 @@ function DashboardContent() {
 
   const [selectedEntity, setSelectedEntity] = useState<string>(() => {
     return entityParam || DEFAULT_ENTITY;
+  });
+
+  const [selectedSegment, setSelectedSegment] = useState<string>(() => {
+    return segmentParam || DEFAULT_SEGMENT;
   });
 
   const activeYearNumber = useMemo(() => {
@@ -87,11 +93,14 @@ function DashboardContent() {
 
     const currentEntity = searchParams.get("entity") || DEFAULT_ENTITY;
     setSelectedEntity((prev) => (prev !== currentEntity ? currentEntity : prev));
+
+    const currentSegment = searchParams.get("segment") || DEFAULT_SEGMENT;
+    setSelectedSegment((prev) => (prev !== currentSegment ? currentSegment : prev));
   }, [searchParams]);
 
   // Synchronize URL query parameters with active state (shallow, no page reload)
   const updateUrl = useCallback(
-    (newTab: ReportTab, newPeriod: string, newEntity: string) => {
+    (newTab: ReportTab, newPeriod: string, newEntity: string, newSegment: string = selectedSegment) => {
       const params = new URLSearchParams();
 
       if (newTab !== DEFAULT_TAB) {
@@ -103,33 +112,42 @@ function DashboardContent() {
       if (newEntity !== DEFAULT_ENTITY) {
         params.set("entity", newEntity);
       }
+      if (newSegment !== DEFAULT_SEGMENT) {
+        params.set("segment", newSegment);
+      }
 
       const queryString = params.toString();
       const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
       router.push(targetUrl, { scroll: false });
     },
-    [pathname, router]
+    [pathname, router, selectedSegment]
   );
 
   const handleTabChange = (tab: ReportTab) => {
     setActiveTab(tab);
-    updateUrl(tab, selectedPeriod, selectedEntity);
+    updateUrl(tab, selectedPeriod, selectedEntity, selectedSegment);
   };
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
-    updateUrl(activeTab, period, selectedEntity);
+    updateUrl(activeTab, period, selectedEntity, selectedSegment);
   };
 
   const handleEntityChange = (entity: string) => {
     setSelectedEntity(entity);
-    updateUrl(activeTab, selectedPeriod, entity);
+    updateUrl(activeTab, selectedPeriod, entity, selectedSegment);
+  };
+
+  const handleSegmentChange = (segment: string) => {
+    setSelectedSegment(segment);
+    updateUrl(activeTab, selectedPeriod, selectedEntity, segment);
   };
 
   const handleResetFilters = () => {
     setSelectedPeriod(DEFAULT_PERIOD);
     setSelectedEntity(DEFAULT_ENTITY);
-    updateUrl(activeTab, DEFAULT_PERIOD, DEFAULT_ENTITY);
+    setSelectedSegment(DEFAULT_SEGMENT);
+    updateUrl(activeTab, DEFAULT_PERIOD, DEFAULT_ENTITY, DEFAULT_SEGMENT);
   };
 
   const handleDownload = () => {
@@ -151,6 +169,8 @@ function DashboardContent() {
           onPeriodChange={handlePeriodChange}
           selectedEntity={selectedEntity}
           onEntityChange={handleEntityChange}
+          selectedSegment={selectedSegment}
+          onSegmentChange={handleSegmentChange}
           onResetFilters={handleResetFilters}
           onOpenUploadModal={() => setIsUploadModalOpen(true)}
           onDownload={handleDownload}
@@ -165,6 +185,7 @@ function DashboardContent() {
             <OverviewView
               entity={selectedEntity}
               period={selectedPeriod}
+              segment={selectedSegment}
               refreshTrigger={refreshTrigger}
               onDatabaseResolved={setDatabaseQueried}
               onYearsResolved={setAvailableYears}

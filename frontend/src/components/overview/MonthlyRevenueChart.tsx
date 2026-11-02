@@ -16,12 +16,14 @@ import {
   ShieldCheck,
   Database,
   Scale,
+  Filter,
 } from "lucide-react";
 import * as echarts from "echarts";
 
 interface MonthlyRevenueChartProps {
   data: MonthlyRevenueItem[];
   period?: string;
+  segment?: string;
   databaseQueried?: string;
 }
 
@@ -43,6 +45,7 @@ const FULL_MONTH_NAMES: Record<string, string> = {
 export function MonthlyRevenueChart({
   data,
   period = "Jan–Sep 2026",
+  segment = "all",
   databaseQueried = "APIdb, AGCdb, AGFdb",
 }: MonthlyRevenueChartProps) {
   const { theme } = useTheme();
@@ -51,6 +54,12 @@ export function MonthlyRevenueChart({
   const [copied, setCopied] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [activeModalTab, setActiveModalTab] = useState<"fin" | "erp" | "recon">("fin");
+
+  const segmentLabel = useMemo(() => {
+    if (segment === "oth") return "Pihak Ketiga (Murni OTH)";
+    if (segment === "affiliate") return "Afiliasi Antar-Grup";
+    return "Semua Penjualan (Gross)";
+  }, [segment]);
 
   useEffect(() => {
     setMounted(true);
@@ -80,23 +89,23 @@ export function MonthlyRevenueChart({
   const auditBadgeInfo = useMemo(() => {
     if (displayYear === "2026") {
       return {
-        label: "✓ LK Disesuaikan",
-        title: "Penyesuaian Laporan Keuangan 2026 (Eksklusi nota ERP-only & koreksi retur)",
+        label: "✓ Data Keuangan Disesuaikan",
+        title: "Penyesuaian Data Keuangan 2026 (Eksklusi nota ERP-only & koreksi retur berjalan)",
       };
     }
     if (displayYear === "2025" || displayYear === "2024") {
       return {
-        label: "✓ Finance Balanced",
-        title: `Auto-balancing penyesuaian Laporan Keuangan resmi audit ${displayYear}`,
+        label: "✓ Data Keuangan Audited",
+        title: `Penyesuaian Tutup Buku Audit Resmi ${displayYear}`,
       };
     }
     return {
-      label: "✓ LK Resmi",
-      title: "Konsolidasi Laporan Keuangan Multi-Tahun",
+      label: "✓ Data Keuangan Resmi",
+      title: "Konsolidasi Data Keuangan Multi-Tahun",
     };
   }, [displayYear]);
 
-  // 1. Financial Layer (LK) Statistics
+  // 1. Financial Layer (Data Keuangan) Statistics
   const totalFinRevenue = useMemo(() => {
     return data.reduce((acc, curr) => acc + (curr.fin_revenue ?? curr.revenue ?? 0), 0);
   }, [data]);
@@ -230,7 +239,7 @@ export function MonthlyRevenueChart({
                   isDark ? "#CBD5E1" : "#334155"
                 }; font-weight: 600;">
                   <span style="width: 8px; height: 8px; border-radius: 2px; background: #2563EB;"></span>
-                  Laporan Keuangan (Resmi):
+                  Data Keuangan (Resmi):
                 </span>
                 <span style="font-size: 13px; font-weight: 700; color: ${
                   isDark ? "#38BDF8" : "#1D4ED8"
@@ -251,6 +260,20 @@ export function MonthlyRevenueChart({
                   IDR ${erpFormatted} M
                 </span>
               </div>
+              ${
+                !isMatch && rowData?.month === "Des"
+                  ? `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 11px;">
+                  <span style="color: ${isDark ? "#FBBF24" : "#D97706"};">Penyesuaian Tutup Buku (31 Des):</span>
+                  <span style="font-weight: 700; color: ${
+                    isDark ? "#FBBF24" : "#D97706"
+                  }; font-family: monospace;">
+                    ${varM > 0 ? "+" : "-"}IDR ${varFormatted} M
+                  </span>
+                </div>
+              `
+                  : ""
+              }
               <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${
                 isDark ? "#334155" : "#E2E8F0"
               }; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
@@ -261,6 +284,8 @@ export function MonthlyRevenueChart({
                   ${
                     isMatch
                       ? "✓ Match 100%"
+                      : rowData?.month === "Des"
+                      ? "Penyesuaian Tutup Buku (31 Des)"
                       : varM > 0
                       ? `+${varFormatted} M`
                       : `-${varFormatted} M`
@@ -334,7 +359,7 @@ export function MonthlyRevenueChart({
       },
       series: [
         {
-          name: "Laporan Keuangan",
+          name: "Data Keuangan",
           type: "bar",
           data: revenues,
           barMaxWidth: 34,
@@ -405,7 +430,7 @@ export function MonthlyRevenueChart({
     let summary = "";
 
     if (activeModalTab === "fin") {
-      header = "No\tBulan Transaksi\tOmzet LK (IDR Miliar)\tNilai Faktur LK (Rp)\t% Kontribusi Total\tStatus Performa\n";
+      header = "No\tBulan Transaksi\tOmzet Keuangan (IDR Miliar)\tNilai Realisasi Keuangan (Rp)\t% Kontribusi Total\tStatus Performa\n";
       rows = data
         .map((d, idx) => {
           const fullMonth = FULL_MONTH_NAMES[d.month] || d.month;
@@ -432,7 +457,7 @@ export function MonthlyRevenueChart({
           return `${idx + 1}\t${fullMonth} ${displayYear}\tIDR ${valM} M\tRp ${formattedRp}\t${pct}%\t${status}`;
         })
         .join("\n");
-      summary = `\nTotal\tTotal Laporan Keuangan (${displayYear})\tIDR ${totalFinRevenue.toFixed(2)} M\tRp ${Number(totalFinRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%\t✓ Terverifikasi LK`;
+      summary = `\nTotal\tTotal Data Keuangan (${displayYear})\tIDR ${totalFinRevenue.toFixed(2)} M\tRp ${Number(totalFinRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%\t✓ Terverifikasi Audit`;
     } else if (activeModalTab === "erp") {
       header = "No\tBulan Transaksi\tOmzet ERP Murni (IDR Miliar)\tNilai Faktur ERP (Rp)\t% Kontribusi Total\tStatus Performa\n";
       rows = data
@@ -462,7 +487,7 @@ export function MonthlyRevenueChart({
       summary = `\nTotal\tTotal ERP Murni (${displayYear})\tIDR ${totalErpRevenue.toFixed(2)} M\tRp ${Number(totalErpRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%\t✓ Log Database ERP`;
     } else {
       // Tab 3: Rekonsiliasi & Varian Selisih (Spreadsheet Match)
-      header = "No\tBulan Transaksi\tData Riil ERP (Rp)\tLaporan Keuangan (Rp)\tSelisih Varian (Rp)\t% Varian\tStatus Audit\n";
+      header = "No\tBulan Transaksi\tData Riil ERP (Rp)\tData Keuangan (Rp)\tSelisih Varian (Keuangan vs ERP)\t% Varian\tStatus Audit\n";
       rows = data
         .map((d, idx) => {
           const fullMonth = FULL_MONTH_NAMES[d.month] || d.month;
@@ -494,6 +519,8 @@ export function MonthlyRevenueChart({
             d.status ||
             (Math.abs(varRp) < 1
               ? "Match 100%"
+              : d.month === "Des"
+              ? "Penyesuaian Tutup Buku (31 Des)"
               : varRp > 0
               ? "Penyesuaian (+)"
               : "Penyesuaian (-)");
@@ -545,6 +572,13 @@ export function MonthlyRevenueChart({
                 <ShieldCheck className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                 {auditBadgeInfo.label}
               </span>
+              <span
+                title={`Filter Segmentasi: ${segmentLabel}`}
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60 shrink-0"
+              >
+                <Filter className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                {segmentLabel}
+              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               {period} · Konsolidasi {databaseQueried}
@@ -556,7 +590,7 @@ export function MonthlyRevenueChart({
             {/* Stat Badge */}
             <div className="h-9 px-3 rounded-lg flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs select-none">
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Total LK:
+                Total Keuangan:
               </span>
               <span className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
                 IDR {totalFinRevenue.toFixed(2).replace(".", ",")} M
@@ -589,23 +623,31 @@ export function MonthlyRevenueChart({
         mounted &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="relative w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
               {/* Modal Header */}
               <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
                 <div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
                       Rincian Audit Realisasi Penjualan Bulanan
                     </h3>
                     <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                       Live SQL (Konsolidasi {displayYear})
                     </span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                      <Filter className="h-3 w-3 text-purple-600 dark:text-purple-400" />
+                      {segmentLabel}
+                    </span>
                     <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                       Dual-Layer Architecture
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Agregasi transaksi penjualan komersial dari {databaseQueried} (Sesuai standarisasi laporan keuangan audit)
+                    {segment === "oth"
+                      ? `Agregasi penjualan komersial pihak ketiga (Murni OTH Non-Afiliasi) dari ${databaseQueried}`
+                      : segment === "affiliate"
+                      ? `Agregasi transaksi penjualan khusus antar entitas afiliasi dari ${databaseQueried} (Akan dieliminasi dalam konsolidasi)`
+                      : `Agregasi seluruh transaksi penjualan komersial (Gross) dari ${databaseQueried} (Sesuai standarisasi data keuangan audit)`}
                   </p>
                 </div>
 
@@ -622,7 +664,7 @@ export function MonthlyRevenueChart({
               {/* 3-Tab Layer Navigation Bar (Sequential: Tab 1 -> Tab 2 -> Tab 3 in a sleek single-line container) */}
               <div className="px-6 pt-3 pb-1 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-x-auto">
                 <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80 w-fit shrink-0">
-                  {/* Tab 1: Laporan Keuangan (Default Active) */}
+                  {/* Tab 1: Data Keuangan (Default Active) */}
                   <button
                     type="button"
                     onClick={() => setActiveModalTab("fin")}
@@ -633,7 +675,7 @@ export function MonthlyRevenueChart({
                     }`}
                   >
                     <ShieldCheck className="h-3.5 w-3.5" />
-                    <span>Tab 1: Laporan Keuangan</span>
+                    <span>Tab 1: Data Keuangan</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                         activeModalTab === "fin"
@@ -697,14 +739,14 @@ export function MonthlyRevenueChart({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 py-3">
                 {activeModalTab === "recon" ? (
                   <>
-                    {/* Card 1: Total Laporan Keuangan */}
+                    {/* Card 1: Total Data Keuangan */}
                     <div className="p-3.5 rounded-xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/50 flex items-center gap-3">
                       <div className="h-9 w-9 rounded-lg bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                         <ShieldCheck className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block truncate">
-                          Total Laporan Keuangan ({displayYear})
+                          Total Data Keuangan ({displayYear})
                         </span>
                         <span className="text-sm sm:text-base font-bold font-mono text-blue-900 dark:text-blue-300 block truncate">
                           IDR {totalFinRevenue.toFixed(2).replace(".", ",")} M
@@ -734,7 +776,7 @@ export function MonthlyRevenueChart({
                       </div>
                       <div className="min-w-0">
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block truncate">
-                          Net Varian Selisih (LK vs ERP)
+                          Net Varian Selisih (Keuangan vs ERP)
                         </span>
                         <span className="text-sm sm:text-base font-bold font-mono text-emerald-900 dark:text-emerald-300 block truncate">
                           {Math.abs(netVarianceRaw) < 1
@@ -754,7 +796,7 @@ export function MonthlyRevenueChart({
                       </div>
                       <div>
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block">
-                          Total Realisasi LK ({displayYear})
+                          Total Realisasi Keuangan ({displayYear})
                         </span>
                         <span className="text-sm sm:text-base font-bold font-mono text-slate-900 dark:text-slate-100">
                           IDR {totalFinRevenue.toFixed(2).replace(".", ",")} M
@@ -847,7 +889,7 @@ export function MonthlyRevenueChart({
 
               {/* Table Area: Fully Visible, Zero Scrollbar Disruption, Harmonized Font */}
               <div className="px-6 py-1 overflow-y-auto flex-1">
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
                   {/* TAB 3: REKONSILIASI & VARIAN SELISIH (Spreadsheet Match) */}
                   {activeModalTab === "recon" && (
                     <table className="w-full text-left text-xs">
@@ -856,10 +898,10 @@ export function MonthlyRevenueChart({
                           <th className="py-2.5 px-3 text-center whitespace-nowrap w-12">No</th>
                           <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
                           <th className="py-2.5 px-3 text-right whitespace-nowrap">Data Riil ERP (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Laporan Keuangan (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Selisih Varian (LK - ERP)</th>
+                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Data Keuangan (Rupiah)</th>
+                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Selisih Varian (Keuangan vs ERP)</th>
                           <th className="py-2.5 px-3 text-right whitespace-nowrap">% Varian</th>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-36">Status Audit</th>
+                          <th className="py-2.5 px-3 text-center whitespace-nowrap min-w-[210px] w-52">Status Audit</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
@@ -934,17 +976,21 @@ export function MonthlyRevenueChart({
                               >
                                 {isMatch ? "0,0%" : `${varRp > 0 ? "+" : ""}${pctVar.replace(".", ",")}%`}
                               </td>
-                              <td className="py-2 px-3 text-center font-sans whitespace-nowrap">
+                              <td className="py-2 px-3 text-center font-sans whitespace-nowrap min-w-[210px]">
                                 {isMatch ? (
                                   <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
                                     ✓ Match 100%
                                   </span>
+                                ) : item.month === "Des" ? (
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
+                                    Penyesuaian Tutup Buku (31 Des)
+                                  </span>
                                 ) : varRp > 0 ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 whitespace-nowrap">
                                     Penyesuaian (+)
                                   </span>
                                 ) : (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
                                     Penyesuaian (-)
                                   </span>
                                 )}
@@ -985,7 +1031,7 @@ export function MonthlyRevenueChart({
                               : "0,00"}
                             %
                           </td>
-                          <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap w-36">
+                          <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap min-w-[210px] w-52">
                             {Math.abs(netVarianceRaw) < 1 ? "✓ Klop Sempurna" : "✓ Balanced Target"}
                           </td>
                         </tr>
@@ -993,15 +1039,15 @@ export function MonthlyRevenueChart({
                     </table>
                   )}
 
-                  {/* TAB 1: LAPORAN KEUANGAN (Adjusted / Auto-Balanced) */}
+                  {/* TAB 1: DATA KEUANGAN (Adjusted / Auto-Balanced) */}
                   {activeModalTab === "fin" && (
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
                         <tr>
                           <th className="py-2.5 px-3 text-center whitespace-nowrap w-12">No</th>
                           <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Omzet LK (IDR Miliar)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Nilai Faktur LK (Rupiah)</th>
+                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Omzet Keuangan (IDR Miliar)</th>
+                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Nilai Realisasi Keuangan (Rupiah)</th>
                           <th className="py-2.5 px-3 text-right whitespace-nowrap">% Kontribusi Total</th>
                           <th className="py-2.5 px-3 text-center whitespace-nowrap w-36">Status Performa</th>
                         </tr>
@@ -1067,7 +1113,7 @@ export function MonthlyRevenueChart({
                       <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold border-t-2 border-slate-200 dark:border-slate-700 sticky bottom-0 z-10 shadow-2xs">
                         <tr>
                           <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                            Total Laporan Keuangan ({displayYear})
+                            Total Data Keuangan ({displayYear})
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
                             {totalFinRevenue.toFixed(2).replace(".", ",")} M
@@ -1082,7 +1128,7 @@ export function MonthlyRevenueChart({
                             100,0%
                           </td>
                           <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap w-36">
-                            ✓ Terverifikasi LK
+                            ✓ Terverifikasi Audit
                           </td>
                         </tr>
                       </tfoot>
@@ -1186,9 +1232,9 @@ export function MonthlyRevenueChart({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-2xl">
                   {activeModalTab === "recon"
-                    ? "Tabel audit rekonsiliasi menyajikan analisis varian transaksi antara catatan database ERP dan target laporan keuangan resmi audit akhir tahun."
+                    ? "Tabel audit rekonsiliasi menyajikan analisis varian transaksi antara catatan database ERP dan target data keuangan resmi audit akhir tahun."
                     : activeModalTab === "fin"
-                    ? "Data Laporan Keuangan resmi mencerminkan angka realisasi penjualan audited yang disahkan untuk manajemen dan pemegang saham."
+                    ? "Data Keuangan resmi mencerminkan angka realisasi penjualan audited yang disahkan untuk manajemen dan pemegang saham."
                     : "Data Riil ERP menampilkan agregasi faktur mentah apa adanya langsung dari database SQL Server untuk kebutuhan operasional IT dan stok logistik."}
                 </span>
 

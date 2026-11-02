@@ -21,6 +21,7 @@ import {
 interface OverviewViewProps {
   entity: string;
   period: string;
+  segment?: string;
   refreshTrigger: number;
   onDatabaseResolved?: (dbQueried: string) => void;
   onYearsResolved?: (years: number[]) => void;
@@ -30,6 +31,7 @@ interface OverviewViewProps {
 export function OverviewView({
   entity,
   period,
+  segment = "all",
   refreshTrigger,
   onDatabaseResolved,
   onYearsResolved,
@@ -52,7 +54,7 @@ export function OverviewView({
 
     // Best practice: 350ms subtle intentional feedback window prevents jarring micro-flickers
     Promise.all([
-      fetchOverviewSummary(entity, period),
+      fetchOverviewSummary(entity, period, "live_sql", segment),
       new Promise((resolve) => setTimeout(resolve, 350)),
     ])
       .then(([res]) => {
@@ -83,7 +85,7 @@ export function OverviewView({
     return () => {
       isMounted = false;
     };
-  }, [entity, period, refreshTrigger, onDatabaseResolved, onYearsResolved, onUpdatingChange]);
+  }, [entity, period, segment, refreshTrigger, onDatabaseResolved, onYearsResolved, onUpdatingChange]);
 
   const { kpis, monthly_revenue_2026, revenue_by_product_type, competitor_position, top_5_customers } = data;
 
@@ -162,6 +164,7 @@ export function OverviewView({
           <MonthlyRevenueChart
             data={monthly_revenue_2026}
             period={data.period || period}
+            segment={segment}
             databaseQueried={data.database_queried}
           />
         </div>

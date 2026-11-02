@@ -11,7 +11,8 @@ def get_overview_summary(
     entity: str = Query("Semua", description="Filter entitas bisnis (Semua, API, AGC, ANR)"),
     periode: Optional[str] = Query(None, description="Filter periode laporan (Indonesian)"),
     period: Optional[str] = Query(None, description="Filter period reports (English)"),
-    source: str = Query("live_sql", description="Data source: 'live_sql' (Direct MSSQL) or 'consolidated' (Excel RKAP)")
+    source: str = Query("live_sql", description="Data source: 'live_sql' (Direct MSSQL) or 'consolidated' (Excel RKAP)"),
+    segment: str = Query("all", description="Filter segmentasi penjualan: 'all' (Gross/Semua), 'oth' (Pihak Ketiga Saja), 'affiliate' (Afiliasi Antar-Grup)")
 ) -> Dict[str, Any]:
     periode = periode or period or "Jan–Sep 2026"
     """
@@ -110,7 +111,8 @@ def get_overview_summary(
                 year=target_year,
                 period=periode,
                 is_all_years=is_all_years,
-                eliminate_affiliate=False
+                eliminate_affiliate=False,
+                segment=segment
             )
             if live_res.get("monthly_revenue_2026"):
                 monthly_revenue = live_res["monthly_revenue_2026"]
@@ -145,6 +147,7 @@ def get_overview_summary(
     return {
         "period": periode,
         "entity": entity,
+        "segment": segment,
         "source": source,
         "is_live_sql": is_live,
         "database_queried": db_queried,

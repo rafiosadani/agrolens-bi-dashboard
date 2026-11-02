@@ -44,6 +44,7 @@ export interface TopCustomerItem {
 export interface OverviewSummaryData {
   period: string;
   entity: string;
+  segment?: string;
   is_live_sql?: boolean;
   database_queried?: string;
   available_years?: number[];
@@ -123,14 +124,17 @@ export const getApiBaseUrl = (): string => {
 export async function fetchOverviewSummary(
   entity: string = "Semua",
   periode: string = "Jan–Sep 2026",
-  source: string = "live_sql"
+  source: string = "live_sql",
+  segment: string = "all"
 ): Promise<OverviewSummaryData> {
   try {
     const baseUrl = getApiBaseUrl();
     const res = await fetch(
       `${baseUrl}/overview/summary?entity=${encodeURIComponent(
         entity
-      )}&periode=${encodeURIComponent(periode)}&source=${encodeURIComponent(source)}`,
+      )}&periode=${encodeURIComponent(periode)}&source=${encodeURIComponent(
+        source
+      )}&segment=${encodeURIComponent(segment)}`,
       {
         cache: "no-store",
       }
