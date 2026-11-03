@@ -41,6 +41,10 @@ const TABS: { id: ReportTab; label: string }[] = [
   { id: "operations", label: "Operasional" },
 ];
 
+const MONTH_SHORT_NAMES = [
+  "", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
+];
+
 export function OverviewHeader({
   activeTab,
   onTabChange,
@@ -57,6 +61,11 @@ export function OverviewHeader({
   availableYears = [2026, 2025, 2024],
   isUpdating = false,
 }: OverviewHeaderProps) {
+  // Dynamic current calendar date detection
+  const now = useMemo(() => new Date(), []);
+  const currentYear = useMemo(() => now.getFullYear(), [now]);
+  const currentMonth = useMemo(() => now.getMonth() + 1, [now]);
+
   // Check if "Semua Tahun" is active
   const isAllYears = useMemo(() => {
     return selectedPeriod.includes("Semua Tahun") || selectedPeriod.includes("All Years");
@@ -65,8 +74,8 @@ export function OverviewHeader({
   // Derive current year (e.g. 2026, 2025, 2024)
   const activeYear = useMemo(() => {
     const match = selectedPeriod.match(/\b(202\d)\b/);
-    return match ? match[1] : "2026";
-  }, [selectedPeriod]);
+    return match ? match[1] : String(currentYear);
+  }, [selectedPeriod, currentYear]);
 
   // Derive current horizon / range
   const activeHorizon = useMemo(() => {
@@ -74,31 +83,60 @@ export function OverviewHeader({
     if (selectedPeriod.includes("Q2")) return "Q2";
     if (selectedPeriod.includes("Q3")) return "Q3";
     if (selectedPeriod.includes("Q4")) return "Q4";
-    if (selectedPeriod.includes("Jan–Des")) return "ALL";
+    if (selectedPeriod.includes("Jan–Des") || selectedPeriod.includes("Semua")) return "ALL";
     return "YTD";
   }, [selectedPeriod]);
 
+  // Dynamic horizon disabling: checks calendar progression
+  const isHorizonDisabled = (horizonId: string, targetYear: string) => {
+    const targetY = Number(targetYear);
+    // Future years: disabled
+    if (targetY > currentYear) return true;
+
+    // Past closed-book years (e.g. 2024, 2025):
+    // YTD is disabled because fiscal year is closed (use "Semua (12 Bln)" instead)
+    if (targetY < currentYear) {
+      if (horizonId === "YTD") return true;
+      return false;
+    }
+
+    // Current running year (e.g. 2026):
+    // "ALL" (Semua 12 Bln) is disabled until the year has fully closed (after December)
+    if (horizonId === "ALL") return currentMonth < 12;
+    // Quarters are disabled if their starting month hasn't arrived
+    if (horizonId === "Q1") return currentMonth < 1;
+    if (horizonId === "Q2") return currentMonth < 4;
+    if (horizonId === "Q3") return currentMonth < 7;
+    if (horizonId === "Q4") return currentMonth < 10;
+    return false;
+  };
+
   const buildPeriodString = (year: string, horizon: string) => {
-    if (horizon === "ALL") return year === "2026" ? `Jan–Sep ${year}` : `Jan–Des ${year}`;
-    if (horizon === "YTD") return `Jan–Sep ${year}`;
+    const isRunningYear = Number(year) === currentYear;
+    const currentMonthName = MONTH_SHORT_NAMES[currentMonth] || "Nov";
+
+    if (horizon === "ALL") return `Jan–Des ${year}`;
+    if (horizon === "YTD") {
+      return isRunningYear
+        ? `YTD (Jan–${currentMonthName}) ${year}`
+        : `Jan–Des ${year}`;
+    }
     if (horizon === "Q1") return `Q1 (Jan–Mar) ${year}`;
     if (horizon === "Q2") return `Q2 (Apr–Jun) ${year}`;
     if (horizon === "Q3") return `Q3 (Jul–Sep) ${year}`;
-    if (horizon === "Q4") return year === "2026" ? `Jan–Sep ${year}` : `Q4 (Okt–Des) ${year}`;
-    return year === "2026" ? `Jan–Sep ${year}` : `Jan–Des ${year}`;
+    if (horizon === "Q4") return `Q4 (Okt–Des) ${year}`;
+    return `Jan–Des ${year}`;
   };
 
   const handleYearChange = (newYear: string) => {
     let nextHorizon = activeHorizon;
-    if (newYear === "2026") {
-      // 2026 adalah tahun berjalan: Q4 belum ada transaksi, default ke YTD (Jan–Sep)
-      if (activeHorizon === "Q4" || activeHorizon === "ALL") {
+    const isRunningYear = Number(newYear) === currentYear;
+    if (isRunningYear) {
+      if (activeHorizon === "ALL" || isHorizonDisabled(activeHorizon, newYear)) {
         nextHorizon = "YTD";
       }
     } else {
-      // Tahun tutup buku (2025, 2024): default selalu full year (Semua 12 Bln)
-      // kecuali user sengaja sedang memilih kuartal spesifik (Q1, Q2, Q3)
-      if (activeHorizon === "YTD" || activeHorizon === "ALL") {
+      if (activeHorizon === "YTD") {
         nextHorizon = "ALL";
       }
     }
@@ -118,7 +156,8 @@ export function OverviewHeader({
     if (onResetFilters) {
       onResetFilters();
     } else {
-      onPeriodChange("Jan–Sep 2026");
+      const currentMonthName = MONTH_SHORT_NAMES[currentMonth] || "Nov";
+      onPeriodChange(`YTD (Jan–${currentMonthName}) ${currentYear}`);
       onEntityChange("Semua");
       onSegmentChange?.("all");
     }
@@ -238,22 +277,34 @@ export function OverviewHeader({
           {/* 2. Rentang Waktu / Kuartal Pills */}
           <div className="flex items-center gap-0.5 bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-lg border border-slate-200/70 dark:border-slate-700/70 shadow-3xs">
             {[
-              { id: "ALL", label: activeYear === "2026" ? "Semua (9 Bln)" : "Semua (12 Bln)" },
-              { id: "YTD", label: "YTD (Jan–Sep)" },
+              { id: "ALL", label: "Semua (12 Bln)" },
+              {
+                id: "YTD",
+                label: Number(activeYear) === currentYear
+                  ? `YTD (Jan–${MONTH_SHORT_NAMES[currentMonth]})`
+                  : "YTD"
+              },
               { id: "Q1", label: "Q1" },
               { id: "Q2", label: "Q2" },
               { id: "Q3", label: "Q3" },
               { id: "Q4", label: "Q4" },
             ].map((horizon) => {
-              const isQ4Disabled = activeYear === "2026" && horizon.id === "Q4";
+              const disabled = isHorizonDisabled(horizon.id, activeYear);
 
-              if (isQ4Disabled) {
+              if (disabled) {
+                let titleReason = `Data ${horizon.label} ${activeYear} belum tersedia`;
+                if (horizon.id === "ALL") {
+                  titleReason = `Tahun ${activeYear} masih berjalan (Tutup buku 12 bulan penuh baru tersedia setelah Desember ${activeYear})`;
+                } else if (horizon.id === "YTD") {
+                  titleReason = `Tahun ${activeYear} sudah tutup buku resmi (Gunakan filter 'Semua (12 Bln)')`;
+                }
+
                 return (
                   <button
                     key={horizon.id}
                     type="button"
                     disabled
-                    title="Data Q4 2026 belum tersedia (Cut-off transaksi September 2026)"
+                    title={titleReason}
                     className="px-2.5 py-1.5 text-xs font-semibold rounded-md opacity-35 cursor-not-allowed text-slate-400 dark:text-slate-500 line-through select-none"
                   >
                     {horizon.label}
@@ -331,7 +382,7 @@ export function OverviewHeader({
           <button
             type="button"
             onClick={handleResetFilters}
-            title="Reset ke Filter Default (Jan–Sep 2026 Konsolidasi)"
+            title={`Reset ke Filter Default (YTD Jan–${MONTH_SHORT_NAMES[currentMonth] || "Nov"} ${currentYear} Konsolidasi)`}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5" />

@@ -1,13 +1,13 @@
 # 📌 Catatan Evaluasi: Penanganan Transaksi Afiliasi & Segmentasi Penjualan (Telah Selesai Diimplementasikan)
 
-**Status:** ✅ Selesai Diimplementasikan (Berdasarkan Data Validasi Mentor 2 Nov 2026)  
+**Status:** ✅ Selesai Diimplementasikan (Berdasarkan Data Validasi Resmi 2 Nov 2026)  
 **Tanggal Penyelesaian:** 2 November 2026  
 **Modul:** `backend/app/services/live_sales_service.py`, `backend/app/api/v1/endpoints/overview.py`, Query T-SQL Multi-Entitas, `frontend/src/components/overview/OverviewHeader.tsx`, `MonthlyRevenueChart.tsx`
 
 ---
 
-## 1. Hasil Crosscheck Data Mentor (`crosscheck data - Data Keuangan PT - Per Tahun.csv`)
-Dari file CSV referensi mentor, angka terbukti 100% konsisten antara Standalone Gross dan pecahan per ELIMINASI:
+## 1. Hasil Crosscheck Data Resmi (`crosscheck data - Data Keuangan PT - Per Tahun.csv`)
+Dari file CSV referensi resmi, angka terbukti 100% konsisten antara Standalone Gross dan pecahan per ELIMINASI:
 
 ### PT Agrochem Mega Globalindo (AMG):
 | Tahun | Standalone Gross (Total PT) | Pihak Ketiga (Murni OTH) | Afiliasi (Intercompany) | Breakdown Afiliasi | Status Reconciled |

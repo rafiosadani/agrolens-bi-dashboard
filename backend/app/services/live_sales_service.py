@@ -7,6 +7,8 @@ Financial Registry benchmarks, and graceful offline fallback resilience.
 import logging
 from typing import Dict, Any, List
 from app.core.database import get_db_connection
+from datetime import datetime
+import re
 from app.core.config import settings
 from app.core.constants.financial_registry import (
     ENTITY_FULL_NAMES,
@@ -68,6 +70,10 @@ def get_live_overview_from_sql(
         is_all_years = True
 
     # 2. Determine active months dynamically from period/year
+    now = datetime.now()
+    cur_year = now.year
+    cur_month = now.month
+
     if "Q1" in period:
         active_months = [1, 2, 3]
     elif "Q2" in period:
@@ -76,10 +82,24 @@ def get_live_overview_from_sql(
         active_months = [7, 8, 9]
     elif "Q4" in period:
         active_months = [10, 11, 12]
-    elif "Jan–Des" in period or "Semua (12 Bln)" in period:
-        active_months = list(range(1, 10)) if (year == 2026 and not is_all_years) else list(range(1, 13))
-    elif "Jan–Sep" in period or "Semua (9 Bln)" in period or "YTD" in period or year == 2026:
-        active_months = list(range(1, 10))
+    elif "Jan–Des" in period or "Semua (12 Bln)" in period or "All Years" in period:
+        active_months = list(range(1, 13))
+    elif re.search(r"Jan[–-]([A-Za-z]+)", period):
+        m_match = re.search(r"Jan[–-]([A-Za-z]+)", period)
+        end_month_str = m_match.group(1).capitalize()
+        month_abbr_map = {
+            "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "Mei": 5, "May": 5,
+            "Jun": 6, "Jul": 7, "Agu": 8, "Aug": 8, "Sep": 9, "Okt": 10, "Oct": 10,
+            "Nov": 11, "Des": 12, "Dec": 12
+        }
+        end_m = month_abbr_map.get(end_month_str, 12)
+        active_months = list(range(1, end_m + 1))
+    elif "YTD" in period:
+        # Dynamic YTD: If running year, up to current calendar month (e.g. 1..11 for Nov)
+        if year == cur_year and not is_all_years:
+            active_months = list(range(1, min(12, max(1, cur_month)) + 1))
+        else:
+            active_months = list(range(1, 13))
     elif is_all_years:
         active_months = list(range(1, 13))
     else:
@@ -123,29 +143,22 @@ def get_live_overview_from_sql(
                     if b_idx in active_months:
                         monthly_raw_data[MONTH_NAMES[b_idx]] += float(r[1] or 0)
 
-                # B. Financial Layer Monthly
-                if is_amg and q_year in (2024, 2025):
-                    # Closed-book audit years: Calculate auto-balance delta in December
-                    cur.execute(builder.build_financial_monthly_query(q_year, active_months, segment))
-                    for r_fin in cur.fetchall():
-                        b_idx = r_fin[0]
-                        if b_idx in active_months:
-                            monthly_fin_data[MONTH_NAMES[b_idx]] += float(r_fin[1] or 0)
+                # B. Financial Layer Monthly (100% Dynamic Live SQL)
+                cur.execute(builder.build_financial_monthly_query(q_year, active_months, segment))
+                for r_fin in cur.fetchall():
+                    b_idx = r_fin[0]
+                    if b_idx in active_months:
+                        monthly_fin_data[MONTH_NAMES[b_idx]] += float(r_fin[1] or 0)
 
-                    # Dynamic Audit Reconciliation Delta Calculation
-                    target_audited = get_audited_target("AMG", q_year, segment)
-                    if target_audited is not None and segment != "affiliate":
-                        tot_cur_erp = sum(monthly_raw_data.values())
-                        delta = target_audited - tot_cur_erp
-                        closing_m = 12 if 12 in active_months else max(active_months)
-                        monthly_fin_data[MONTH_NAMES[closing_m]] += delta
-                else:
-                    # Ongoing year (2026) or Standard Entities: Dynamic SQL query directly
-                    cur.execute(builder.build_financial_monthly_query(q_year, active_months, segment))
-                    for r_fin in cur.fetchall():
-                        b_idx = r_fin[0]
-                        if b_idx in active_months:
-                            monthly_fin_data[MONTH_NAMES[b_idx]] += float(r_fin[1] or 0)
+                # Closed-book audit reconciliation for 2024 if delta exists
+                if is_amg and q_year == 2024 and segment != "affiliate":
+                    target_audited = get_audited_target("AMG", 2024, segment)
+                    if target_audited is not None:
+                        tot_fin = sum(monthly_fin_data.values())
+                        delta = target_audited - tot_fin
+                        if abs(delta) > 1.0:
+                            closing_m = 12 if 12 in active_months else max(active_months)
+                            monthly_fin_data[MONTH_NAMES[closing_m]] += delta
 
                 # C. Top Customers
                 cur.execute(builder.build_top_customers_query(q_year, active_months, segment, top_n=10))

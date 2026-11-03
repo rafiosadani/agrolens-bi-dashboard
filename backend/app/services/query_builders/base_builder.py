@@ -19,11 +19,29 @@ class BaseSalesQueryBuilder(ABC):
         self.db_name = db_name
 
     def build_date_condition(self, year: int) -> str:
-        """Strict date boundary condition for the target year."""
-        if year == 2026:
-            # Cut-off at 25 Sep 2026 per official corporate audit schedule
-            return "sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2026-09-26'"
+        """Dynamic date boundary condition for the target year (inclusive of full 12 months across all entities)."""
         return f"sih.TglFaktur >= '{year}-01-01' AND sih.TglFaktur < '{year + 1}-01-01'"
+
+    def build_period_expression(self, inv_col: str = "sih.NoBukti", date_col: str = "sih.TglFaktur") -> str:
+        """
+        Dynamically extracts accounting period (Roman numeral in No Bukti / Invoice)
+        used by official corporate finance accounting. Falls back to MONTH(date_col).
+        """
+        return f"""CASE 
+            WHEN {inv_col} LIKE '%/XII/%' OR {inv_col} LIKE '%-XII-%' THEN 12
+            WHEN {inv_col} LIKE '%/XI/%'  OR {inv_col} LIKE '%-XI-%'  THEN 11
+            WHEN {inv_col} LIKE '%/X/%'   OR {inv_col} LIKE '%-X-%'   THEN 10
+            WHEN {inv_col} LIKE '%/IX/%'  OR {inv_col} LIKE '%-IX-%'  THEN 9
+            WHEN {inv_col} LIKE '%/VIII/%' OR {inv_col} LIKE '%-VIII-%' THEN 8
+            WHEN {inv_col} LIKE '%/VII/%' OR {inv_col} LIKE '%-VII-%' THEN 7
+            WHEN {inv_col} LIKE '%/VI/%'  OR {inv_col} LIKE '%-VI-%'  THEN 6
+            WHEN {inv_col} LIKE '%/V/%'   OR {inv_col} LIKE '%-V-%'   THEN 5
+            WHEN {inv_col} LIKE '%/IV/%'  OR {inv_col} LIKE '%-IV-%'  THEN 4
+            WHEN {inv_col} LIKE '%/III/%' OR {inv_col} LIKE '%-III-%' THEN 3
+            WHEN {inv_col} LIKE '%/II/%'  OR {inv_col} LIKE '%-II-%'  THEN 2
+            WHEN {inv_col} LIKE '%/I/%'   OR {inv_col} LIKE '%-I-%'   THEN 1
+            ELSE MONTH({date_col})
+        END"""
 
     def build_affiliate_clause(self, segment: str = "all") -> str:
         """Builds SQL WHERE clause for customer segment: 'all', 'oth', or 'affiliate'."""

@@ -14,7 +14,7 @@ export interface KpiMetricItem {
  * -------------------------------------------------------------
  * File ini adalah Single Source of Truth untuk 4 Card Metrik di Halaman Ringkasan.
  * Anda dapat dengan bebas mengubah angka, label, atau badge di sini
- * saat menerima data final dari mentor atau rekan magang.
+ * saat menerima data final resmi atau penyesuaian target.
  */
 export const MOCK_KPI_DATA: Record<string, KpiMetricItem> = {
   target_rkap: {

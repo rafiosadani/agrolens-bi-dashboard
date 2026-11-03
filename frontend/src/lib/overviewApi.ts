@@ -74,8 +74,12 @@ export interface OverviewSummaryData {
   top_5_customers: TopCustomerItem[];
 }
 
+const _now = new Date();
+const _monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const CURRENT_DEFAULT_PERIOD = `YTD (Jan–${_monthNames[_now.getMonth() + 1] || "Nov"}) ${_now.getFullYear()}`;
+
 export const INITIAL_OVERVIEW_DATA: OverviewSummaryData = {
-  period: "Jan–Sep 2026",
+  period: CURRENT_DEFAULT_PERIOD,
   entity: "Semua",
   kpis: {
     target_rkap: {
@@ -120,7 +124,7 @@ export const INITIAL_OVERVIEW_DATA: OverviewSummaryData = {
 export const getApiBaseUrl = (): string => {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
-    // When accessed via LAN IP (e.g. 192.168.2.69) from colleague or mentor laptop,
+    // When accessed via LAN IP (e.g. 192.168.2.69) from colleague or team member laptop,
     // connect directly to port 8001 on that same host with full CORS support!
     if (host && host !== "localhost" && host !== "127.0.0.1") {
       return `http://${host}:8001/api/v1`;
@@ -134,7 +138,7 @@ export const getApiBaseUrl = (): string => {
 
 export async function fetchOverviewSummary(
   entity: string = "Semua",
-  periode: string = "Jan–Sep 2026",
+  periode: string = CURRENT_DEFAULT_PERIOD,
   source: string = "live_sql",
   segment: string = "all"
 ): Promise<OverviewSummaryData> {

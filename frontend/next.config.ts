@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Allow LAN access (colleagues, mentor, mobile, etc.) during development
+  // Allow LAN access (colleagues, team members, mobile, etc.) during development
   allowedDevOrigins: [
     "192.168.2.69",
     "192.168.2.69:3001",

@@ -1,7 +1,7 @@
 """
 Offline Safety & Fallback Resilience Layer
 Provides verified reference distributions when SQL Server is offline, unreachable, or in development mode.
-Strictly calibrated against the official mentor financial dataset.
+Strictly calibrated against the certified official corporate financial dataset.
 """
 
 from typing import Dict, List, Tuple

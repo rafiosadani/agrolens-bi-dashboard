@@ -17,8 +17,10 @@ const VALID_TABS: ReportTab[] = [
   "operations",
 ];
 
+const _now = new Date();
+const _monthNames = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const DEFAULT_PERIOD = `YTD (Jan–${_monthNames[_now.getMonth() + 1] || "Nov"}) ${_now.getFullYear()}`;
 const DEFAULT_TAB: ReportTab = "overview";
-const DEFAULT_PERIOD = "Jan–Sep 2026";
 const DEFAULT_ENTITY = "Semua";
 const DEFAULT_SEGMENT = "all";
 

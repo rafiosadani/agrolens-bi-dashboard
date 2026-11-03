@@ -1,8 +1,8 @@
 """
 Financial Registry & Benchmark Catalog
 Source of Truth for Audited Financial Statements and Intercompany Affiliate Eliminations.
-Directly derived from the mentor's certified crosscheck dataset:
-'crosscheck data - Data Keuangan PT - Per Tahun.csv'
+Directly derived from the certified corporate crosscheck dataset:
+'crosscheck data - Data Keuangan PT - Per Tahun.csv' and 'crosscheck data - Data Keuangan PT AGC AMG - Per Bulan.csv'
 """
 
 from typing import Dict, Tuple, Optional
