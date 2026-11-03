@@ -1,12 +1,31 @@
+"""
+Live Sales Service (Enterprise Orchestrator)
+Orchestrates live SQL Server queries using the Strategy Pattern (Query Builders),
+Financial Registry benchmarks, and graceful offline fallback resilience.
+"""
+
 import logging
 from typing import Dict, Any, List
 from app.core.database import get_db_connection
 from app.core.config import settings
+from app.core.constants.financial_registry import (
+    ENTITY_FULL_NAMES,
+    ENTITY_COLORS,
+    normalize_entity_code,
+    get_audited_target,
+    get_affiliate_breakdown,
+)
+from app.services.query_builders.builder_factory import SalesQueryBuilderFactory
+from app.services.fallbacks.offline_safety import (
+    MONTH_NAMES,
+    get_offline_reference_data,
+)
 
 logger = logging.getLogger("agrolens.live_sales")
 
+
 def get_server_available_databases() -> List[str]:
-    """Queries SQL Server to get list of currently existing databases."""
+    """Queries SQL Server to get list of currently existing enterprise databases."""
     try:
         with get_db_connection() as conn:
             cur = conn.cursor()
@@ -20,53 +39,6 @@ def get_server_available_databases() -> List[str]:
         logger.warning(f"Could not fetch sys.databases: {e}")
         return []
 
-# Benchmark breakdown of affiliated sales from audited mentor crosscheck data
-AFFILIATE_BENCHMARKS = {
-    # (Selling Entity, Year): { CounterpartyCode: Amount }
-    ("AMG", 2024): {"API": 162627500.0, "SBP": 73260000.0},
-    ("AMG", 2025): {"API": 38865000.0},
-    ("AMG", 2026): {"API": 72140750.0},
-
-    ("ANR", 2024): {"AMG": 150302013250.0, "API": 8383137500.0, "SAP": 4773149750.0, "MAA": 26804180.0},
-    ("ANR", 2025): {"AMG": 156375644908.0, "API": 28255718750.0, "SAP": 2054734585.0, "MAA": 12285000.0},
-    ("ANR", 2026): {"AMG": 216267204765.0, "API": 38323531250.0, "SAP": 7606034234.0, "MAA": 514910000.0},
-
-    ("API", 2024): {"ANR": 82000000.0, "AMG": 7837838.0},
-    ("API", 2025): {"ANR": 7050634180.0, "AMG": 2920853858.0},
-    ("API", 2026): {"AMG": 30000000.0},
-
-    ("MAA", 2024): {"AMG": 2005837500.0, "ANR": 1592965000.0, "API": 463265000.0},
-    ("MAA", 2025): {"API": 4048977500.0, "AMG": 3199387500.0, "SAP": 857556375.0, "ANR": 2432432.0},
-    ("MAA", 2026): {"AMG": 4137158750.0, "API": 2546998750.0, "ANR": 375117436.0, "SAP": 34660571.0},
-
-    ("SAP", 2024): {"AMG": 836987500.0, "SBP": 13513514.0},
-    ("SAP", 2025): {"ANR": 3177754600.0, "AMG": 590448800.0},
-    ("SAP", 2026): {"ANR": 2819881350.0},
-
-    ("TTM", 2025): {"ANR": 932064000.0},
-    ("TTM", 2026): {"ANR": 1411427500.0},
-}
-
-ENTITY_FULL_NAMES = {
-    "AMG": "PT Agrochem Mega Globalindo",
-    "ANR": "PT Agrofarm Nusa Raya",
-    "API": "PT Agri Prime International",
-    "MAA": "PT Mycotech Agro Asia",
-    "SAP": "PT Sarana Agro Panata",
-    "SBP": "PT Sarana Benih Panata",
-    "TTM": "PT Talenta Tiga Muda",
-}
-
-ENTITY_COLORS = {
-    "API": "#2563EB",
-    "SBP": "#0D9488",
-    "AMG": "#1E3A8A",
-    "ANR": "#059669",
-    "SAP": "#D97706",
-    "MAA": "#7C3AED",
-    "TTM": "#64748B",
-}
-
 
 def get_live_overview_from_sql(
     entity: str = "Semua",
@@ -77,13 +49,13 @@ def get_live_overview_from_sql(
     segment: str = "all"
 ) -> Dict[str, Any]:
     """
-    Directly and dynamically queries live MSSQL databases (APIdb00X, AGCdb00X, AGFdb00X, etc.)
-    using dynamic configuration rules, eliminating internal affiliates, and filtering by period.
-    Supports dynamic year detection, 'Semua Tahun' cumulative consolidation, and customer segmentation ('all', 'oth', 'affiliate').
+    Orchestrates live dual-layer sales extraction:
+    - Queries operational ERP data (Tab 1: Raw ERP Murni).
+    - Queries adjusted financial data (Tab 2: Financial Layer).
+    - Computes audit variance and reconciliation status (Tab 3: Rekonsiliasi & Varian).
+    - Extracts Top Customers, Product Categories, and Intercompany Affiliate Breakdown.
     """
-    month_names = ["", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
-
-    # Detect all available years dynamically from server databases (suffix 001 -> 2024, 002 -> 2025, etc.)
+    # 1. Detect available years dynamically from server database catalog
     available_dbs = get_server_available_databases()
     detected_years = sorted(
         list(set([2023 + int(name[-3:]) for name in available_dbs if len(name) >= 3 and name[-3:].isdigit()])),
@@ -92,11 +64,10 @@ def get_live_overview_from_sql(
     if not detected_years:
         detected_years = [2026, 2025, 2024]
 
-    # Check if "Semua Tahun" was requested in period string
     if "Semua Tahun" in period or "All Years" in period:
         is_all_years = True
 
-    # 1. Determine active months dynamically from period/year
+    # 2. Determine active months dynamically from period/year
     if "Q1" in period:
         active_months = [1, 2, 3]
     elif "Q2" in period:
@@ -106,37 +77,26 @@ def get_live_overview_from_sql(
     elif "Q4" in period:
         active_months = [10, 11, 12]
     elif "Jan–Des" in period or "Semua (12 Bln)" in period:
-        if year == 2026 and not is_all_years:
-            active_months = list(range(1, 10))
-        else:
-            active_months = list(range(1, 13))
-    elif "Jan–Sep" in period or "Semua (9 Bln)" in period or "YTD" in period:
+        active_months = list(range(1, 10)) if (year == 2026 and not is_all_years) else list(range(1, 13))
+    elif "Jan–Sep" in period or "Semua (9 Bln)" in period or "YTD" in period or year == 2026:
         active_months = list(range(1, 10))
     elif is_all_years:
         active_months = list(range(1, 13))
-    elif year == 2026:
-        active_months = list(range(1, 10))
     else:
         active_months = list(range(1, 13))
 
-    months_str = ", ".join(str(m) for m in active_months)
-
-    monthly_raw_data: Dict[str, float] = {month_names[m]: 0.0 for m in active_months}
-    monthly_fin_data: Dict[str, float] = {month_names[m]: 0.0 for m in active_months}
+    # Initialize aggregators
+    monthly_raw_data: Dict[str, float] = {MONTH_NAMES[m]: 0.0 for m in active_months}
+    monthly_fin_data: Dict[str, float] = {MONTH_NAMES[m]: 0.0 for m in active_months}
     live_affiliate_dict: Dict[str, float] = {}
     top_customers_dict: Dict[str, float] = {}
     categories_dict: Dict[str, float] = {}
     categories_raw_dict: Dict[str, float] = {}
 
-    # 2. Determine target databases dynamically based on entity filter, year, and server databases
+    # 3. Determine target databases dynamically based on entity filter and years
     target_dbs: List[tuple] = []
-
-    if entity in ("Semua", "Konsolid", "Konsolidasi"):
-        entities_to_query = ["API", "AMG", "ANR"]
-    else:
-        norm_entity = "AMG" if entity in ("AMG", "AGC") else ("ANR" if entity in ("ANR", "AGF") else entity)
-        entities_to_query = [norm_entity]
-
+    norm_ent = normalize_entity_code(entity)
+    entities_to_query = ["API", "AMG", "ANR"] if norm_ent == "Semua" else [norm_ent]
     query_years = detected_years if is_all_years else [year]
 
     for q_year in query_years:
@@ -145,672 +105,97 @@ def get_live_overview_from_sql(
             if not available_dbs or db_name in available_dbs:
                 target_dbs.append((ent, db_name, q_year))
             else:
-                logger.info(f"Database {db_name} not found in live SQL Server list, skipping safely.")
+                logger.info(f"Database {db_name} not found in SQL Server list, skipping safely.")
 
-    # 3. Build dynamic affiliate elimination clause based on customer segment ('all', 'oth', 'affiliate')
-    affiliate_clause = ""
-    if segment == "oth" and settings.AFFILIATED_COMPANIES:
-        clauses = [f"c.NamaLgn NOT LIKE '%{company}%'" for company in settings.AFFILIATED_COMPANIES]
-        affiliate_clause = "AND (" + " AND ".join(clauses) + ")"
-    elif segment == "affiliate" and settings.AFFILIATED_COMPANIES:
-        clauses = [f"c.NamaLgn LIKE '%{company}%'" for company in settings.AFFILIATED_COMPANIES]
-        affiliate_clause = "AND (" + " OR ".join(clauses) + ")"
-    elif eliminate_affiliate and settings.AFFILIATED_COMPANIES:
-        clauses = [f"c.NamaLgn NOT LIKE '%{company}%'" for company in settings.AFFILIATED_COMPANIES]
-        affiliate_clause = "AND (" + " AND ".join(clauses) + ")"
-
-    # 4. Execute queries across each resolved live database
+    # 4. Execute queries using Strategy Pattern (Query Builders)
     for pt_name, db_name, q_year in target_dbs:
         try:
+            builder = SalesQueryBuilderFactory.get_builder(pt_name, db_name)
+            is_amg = pt_name == "AMG" or "AGC" in db_name
+
             with get_db_connection(db_name) as conn:
                 cur = conn.cursor()
 
-                # Determine strict date boundaries to prevent cross-year legacy data bleed
-                if q_year == 2024:
-                    date_cond = "sih.TglFaktur >= '2024-01-01' AND sih.TglFaktur < '2025-01-01'"
-                elif q_year == 2025:
-                    date_cond = "sih.TglFaktur >= '2025-01-01' AND sih.TglFaktur < '2026-01-01'"
-                elif q_year == 2026:
-                    # Strict cut-off date per official reference query (data sampai 25 Sep 2026)
-                    date_cond = "sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2026-09-26'"
-                else:
-                    date_cond = f"sih.TglFaktur >= '{q_year}-01-01' AND sih.TglFaktur < '{q_year+1}-01-01'"
-
-                # A. Query Tab 1: Real ERP (Murni) using full Net Price CTE calculation (Gold Standard)
-                # Matches exact spreadsheet formula: BaseHargaNet, inclusive PPN divider, header extra discount & ROW_NUMBER()
-                sql_monthly_erp = f"""
-                    WITH RawCombinedData AS (
-                        SELECT
-                            '{pt_name}' AS [PT],
-                            {q_year} AS TahunDb,
-                            LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
-                            CAST(sih.TglFaktur AS DATE) AS TglTrn,
-                            MONTH(sih.TglFaktur) AS Bln,
-                            sii.Qty AS Qty,
-                            COALESCE(NULLIF(sii.HargaNet, 0), 
-                                (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
-                                 * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) 
-                                * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)
-                            ) AS BaseHargaNet,
-                            CASE 
-                                WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0
-                                ELSE 1.0
-                            END AS PpnDivider,
-                            ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
-                            sii.SalesInvoiceItemId AS TransactionItemId
-                        FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                        INNER JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                        LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                        WHERE {date_cond}
-                          AND MONTH(sih.TglFaktur) IN ({months_str})
-                          {affiliate_clause}
-                    ),
-                    CalculatedNet AS (
-                        SELECT 
-                            *,
-                            (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal,
-                            SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvoiceTotalSubtotal
-                        FROM RawCombinedData
-                    ),
-                    FinalNetPrice AS (
-                        SELECT 
-                            *,
-                            CASE 
-                                WHEN InvoiceTotalSubtotal > 0 THEN 
-                                    (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvoiceTotalSubtotal) * HeaderExtDisc / NULLIF(Qty, 0))
-                                ELSE 
-                                    (BaseHargaNet / PpnDivider)
-                            END AS HargaJualNet
-                        FROM CalculatedNet
-                    ),
-                    RankedData AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY TahunDb, TransactionItemId, NoInvoice
-                                ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC
-                            ) AS rn
-                        FROM FinalNetPrice
-                    )
-                    SELECT 
-                        Bln, 
-                        ROUND(SUM(Qty * HargaJualNet), 2) AS MonthlyOmzet
-                    FROM RankedData
-                    WHERE rn = 1
-                    GROUP BY Bln
-                    ORDER BY Bln
-                """
-                cur.execute(sql_monthly_erp)
+                # A. Raw ERP Monthly
+                cur.execute(builder.build_erp_monthly_query(q_year, active_months, segment))
                 for r in cur.fetchall():
-                    bln_idx = r[0]
-                    if bln_idx in active_months:
-                        raw_rp = float(r[1] or 0)
-                        m_name = month_names[bln_idx]
-                        monthly_raw_data[m_name] += raw_rp
+                    b_idx = r[0]
+                    if b_idx in active_months:
+                        monthly_raw_data[MONTH_NAMES[b_idx]] += float(r[1] or 0)
 
-                # B. Query Tab 2: Financial Layer (Laporan Keuangan Penyesuaian)
-                is_amg = pt_name in ("AMG", "AGC") or "AGC" in db_name
-
-                if is_amg and q_year == 2026:
-                    # Year 2026 Financial Adjusted: Exclusion of 6 ERP-only invoices, Special 291/INV, RS-% return, and 5 Return Injections
-                    if segment != "affiliate":
-                        tambah_clause = f""",
-                        Tambah AS (
-                            SELECT 
-                                MONTH(CAST(v.tgl AS DATE)) AS Bln,
-                                CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
-                            FROM (VALUES
-                                ('063/INV/AMG-RHM/II/26',          '2026-03-02', -1038240),
-                                ('068/INV/AMG-WKS/II/26',          '2026-03-02', -1038240),
-                                ('068/INV/AMG-WKS/II/26',          '2026-04-13', -11500000),
-                                ('075/INV/AMG-PBLP/II/26',         '2026-03-02', -193550),
-                                ('223/INV/AMG-BAM/V/26 REVISI INV','2026-07-27', -377000)
-                            ) v(inv, tgl, nilai)
-                            WHERE MONTH(CAST(v.tgl AS DATE)) IN ({months_str})
-                        ),
-                        Combined AS (
-                            SELECT Bln, Penjualan FROM Base
-                            UNION ALL
-                            SELECT Bln, Penjualan FROM Tambah
-                        )"""
-                    else:
-                        tambah_clause = """,
-                        Combined AS (
-                            SELECT Bln, Penjualan FROM Base
-                        )"""
-
-                    sql_monthly_fin = f"""
-                        WITH RawCombinedData AS (
-                            SELECT
-                                'AMG' AS [PT], 2026 AS TahunDb,
-                                LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
-                                CAST(sih.TglFaktur AS DATE) AS TglTrn,
-                                MONTH(sih.TglFaktur) AS Bln,
-                                sii.Qty AS Qty,
-                                COALESCE(NULLIF(sii.HargaNet, 0), 
-                                    (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
-                                     * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) 
-                                    * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)
-                                ) AS BaseHargaNet,
-                                CASE 
-                                    WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0
-                                    ELSE 1.0
-                                END AS PpnDivider,
-                                ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
-                                sii.SalesInvoiceItemId AS TransactionItemId
-                            FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                            INNER JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                            LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                            WHERE sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2026-09-26'
-                              AND MONTH(sih.TglFaktur) IN ({months_str})
-                              {affiliate_clause}
-                              AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN (
-                                  '421.1/INV/AMG-ANR/VIII/26',
-                                  '421.2/INV/AMG-ANR/VIII/26',
-                                  '436/INV/AMG-BLS/IX/26(PPN KELUARAN)',
-                                  '376/INV/AMG-MAR/VIII/26(1)',
-                                  '387/INV/AMG-ASL/VIII/26 (1)',
-                                  '236/INV/AMG-GH/V/26(1)'
-                              )
-                        ),
-                        CalculatedNet AS (
-                            SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal,
-                                   SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvoiceTotalSubtotal
-                            FROM RawCombinedData
-                        ),
-                        FinalNetPrice AS (
-                            SELECT *,
-                                   CASE WHEN InvoiceTotalSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvoiceTotalSubtotal) * HeaderExtDisc / NULLIF(Qty, 0))
-                                        ELSE (BaseHargaNet / PpnDivider) END AS HargaJualNet
-                            FROM CalculatedNet
-                        ),
-                        RankedData AS (
-                            SELECT *, ROW_NUMBER() OVER (PARTITION BY TahunDb, TransactionItemId, NoInvoice ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC) AS rn
-                            FROM FinalNetPrice
-                        ),
-                        Base AS (
-                            SELECT 
-                                MONTH(r.TglTrn) AS Bln,
-                                ROUND(
-                                    CASE 
-                                        WHEN r.NoInvoice = '291/INV/AMG-NKL/VI/26' THEN 18300000        
-                                        WHEN r.NoInvoice LIKE 'RS-%'              THEN -ABS(r.Qty * r.HargaJualNet)
-                                        ELSE r.Qty * r.HargaJualNet 
-                                    END, 2) AS Penjualan
-                            FROM RankedData r
-                            WHERE r.rn = 1
-                        )
-                        {tambah_clause}
-                        SELECT Bln, ROUND(SUM(Penjualan), 2) AS MonthlyOmzet
-                        FROM Combined
-                        GROUP BY Bln
-                        ORDER BY Bln
-                    """
-                    cur.execute(sql_monthly_fin)
+                # B. Financial Layer Monthly
+                if is_amg and q_year in (2024, 2025):
+                    # Closed-book audit years: Calculate auto-balance delta in December
+                    cur.execute(builder.build_financial_monthly_query(q_year, active_months, segment))
                     for r_fin in cur.fetchall():
                         b_idx = r_fin[0]
                         if b_idx in active_months:
-                            m_name = month_names[b_idx]
-                            monthly_fin_data[m_name] += float(r_fin[1] or 0)
+                            monthly_fin_data[MONTH_NAMES[b_idx]] += float(r_fin[1] or 0)
 
-                elif is_amg and q_year == 2025:
-                    if segment == "affiliate":
-                        # For AMG 2025 Affiliate: Exclude 391/INV/AMG-ANR/VIII/25 from Financial Layer (Transport/Direct Entry)
-                        sql_monthly_fin = f"""
-                            WITH RawData AS (
-                                SELECT
-                                    MONTH(sih.TglFaktur) AS Bln,
-                                    sii.Qty,
-                                    COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
-                                    CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
-                                    ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
-                                    sii.SalesInvoiceItemId,
-                                    LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice
-                                FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                                INNER JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                                LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                                WHERE sih.TglFaktur >= '2025-01-01' AND sih.TglFaktur < '2026-01-01'
-                                  AND MONTH(sih.TglFaktur) IN ({months_str})
-                                  {affiliate_clause}
-                                  AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')
-                            ),
-                            NetCalc AS (
-                                SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal, SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvSubtotal
-                                FROM RawData
-                            ),
-                            FinalP AS (
-                                SELECT *, CASE WHEN InvSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvSubtotal) * HeaderExtDisc / NULLIF(Qty, 0)) ELSE (BaseHargaNet / PpnDivider) END AS HargaNet
-                                FROM NetCalc
-                            ),
-                            Ranked AS (
-                                SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
-                            )
-                            SELECT Bln, ROUND(SUM(Qty * HargaNet), 2) AS MonthlyOmzet 
-                            FROM Ranked 
-                            WHERE rn = 1
-                            GROUP BY Bln
-                            ORDER BY Bln
-                        """
-                        cur.execute(sql_monthly_fin)
-                        for r_fin in cur.fetchall():
-                            b_idx = r_fin[0]
-                            if b_idx in active_months:
-                                m_name = month_names[b_idx]
-                                monthly_fin_data[m_name] += float(r_fin[1] or 0)
-                    else:
-                        # For Gross or OTH: copy monthly ERP, and apply auto-balance closing delta in December (ADJ-AUDIT row)
-                        cur.execute(sql_monthly_erp)
-                        for r_erp in cur.fetchall():
-                            b_idx = r_erp[0]
-                            if b_idx in active_months:
-                                m_name = month_names[b_idx]
-                                monthly_fin_data[m_name] += float(r_erp[1] or 0)
-                        
-                        TARGET_AMG_2025 = 255631449068.00 if segment == "oth" else 255670314068.00
-                        fallback_erp_2025 = 255781618277.00 if segment == "oth" else 255820483277.00
-                        try:
-                            cur.execute(f"""
-                                WITH RawData AS (
-                                    SELECT
-                                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice,
-                                        sii.Qty,
-                                        COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
-                                        CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
-                                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
-                                        sii.SalesInvoiceItemId
-                                    FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                                    INNER JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                                    LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                                    WHERE sih.TglFaktur >= '2025-01-01' AND sih.TglFaktur < '2026-01-01' {affiliate_clause}
-                                ),
-                                NetCalc AS (
-                                    SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal, SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvSubtotal
-                                    FROM RawData
-                                ),
-                                FinalP AS (
-                                    SELECT *, CASE WHEN InvSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvSubtotal) * HeaderExtDisc / NULLIF(Qty, 0)) ELSE (BaseHargaNet / PpnDivider) END AS HargaNet
-                                    FROM NetCalc
-                                ),
-                                Ranked AS (
-                                    SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
-                                )
-                                SELECT ROUND(SUM(Qty * HargaNet), 2) FROM Ranked WHERE rn = 1
-                            """)
-                            row_tot = cur.fetchone()
-                            tot_amg_2025_erp = float(row_tot[0] or fallback_erp_2025)
-                        except Exception:
-                            tot_amg_2025_erp = fallback_erp_2025
-
-                        delta_2025 = TARGET_AMG_2025 - tot_amg_2025_erp
+                    # Dynamic Audit Reconciliation Delta Calculation
+                    target_audited = get_audited_target("AMG", q_year, segment)
+                    if target_audited is not None and segment != "affiliate":
+                        tot_cur_erp = sum(monthly_raw_data.values())
+                        delta = target_audited - tot_cur_erp
                         closing_m = 12 if 12 in active_months else max(active_months)
-                        monthly_fin_data[month_names[closing_m]] += delta_2025
-
-                elif is_amg and q_year == 2024:
-                    # In 2024: copy monthly ERP, and apply auto-balance closing delta in December
-                    cur.execute(sql_monthly_erp)
-                    for r_erp in cur.fetchall():
-                        b_idx = r_erp[0]
-                        if b_idx in active_months:
-                            m_name = month_names[b_idx]
-                            monthly_fin_data[m_name] += float(r_erp[1] or 0)
-                    
-                    # Target audited finance: 187.202.479.214 (Gross), 186.966.591.714 (OTH), 235.887.500 (Affiliate)
-                    if segment == "oth":
-                        TARGET_AMG_2024 = 186966591714.00
-                        fallback_erp_2024 = 187341666686.00
-                    elif segment == "affiliate":
-                        TARGET_AMG_2024 = 235887500.00
-                        fallback_erp_2024 = 235887500.00
-                    else:
-                        TARGET_AMG_2024 = 187202479214.00
-                        fallback_erp_2024 = 187577554186.00
-
-                    try:
-                        cur.execute(f"""
-                            WITH RawData AS (
-                                SELECT
-                                    LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice,
-                                    sii.Qty,
-                                    COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
-                                    CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
-                                    ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
-                                    sii.SalesInvoiceItemId
-                                FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                                INNER JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                                LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                                WHERE sih.TglFaktur >= '2024-01-01' AND sih.TglFaktur < '2025-01-01' {affiliate_clause}
-                            ),
-                            NetCalc AS (
-                                SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal, SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvSubtotal
-                                FROM RawData
-                            ),
-                            FinalP AS (
-                                SELECT *, CASE WHEN InvSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvSubtotal) * HeaderExtDisc / NULLIF(Qty, 0)) ELSE (BaseHargaNet / PpnDivider) END AS HargaNet
-                                FROM NetCalc
-                            ),
-                            Ranked AS (
-                                SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
-                            )
-                            SELECT ROUND(SUM(Qty * HargaNet), 2) FROM Ranked WHERE rn = 1
-                        """)
-                        row_tot = cur.fetchone()
-                        tot_amg_2024_erp = float(row_tot[0] or fallback_erp_2024)
-                    except Exception:
-                        tot_amg_2024_erp = fallback_erp_2024
-
-                    delta_2024 = TARGET_AMG_2024 - tot_amg_2024_erp
-                    closing_m = 12 if 12 in active_months else max(active_months)
-                    monthly_fin_data[month_names[closing_m]] += delta_2024
-
+                        monthly_fin_data[MONTH_NAMES[closing_m]] += delta
                 else:
-                    # Other entities (API, ANR): Financial layer matches Raw ERP
-                    cur.execute(sql_monthly_erp)
-                    for r_erp in cur.fetchall():
-                        b_idx = r_erp[0]
+                    # Ongoing year (2026) or Standard Entities: Dynamic SQL query directly
+                    cur.execute(builder.build_financial_monthly_query(q_year, active_months, segment))
+                    for r_fin in cur.fetchall():
+                        b_idx = r_fin[0]
                         if b_idx in active_months:
-                            m_name = month_names[b_idx]
-                            monthly_fin_data[m_name] += float(r_erp[1] or 0)
+                            monthly_fin_data[MONTH_NAMES[b_idx]] += float(r_fin[1] or 0)
 
-                # C. Top Customers (Strictly bounded by date_cond of the year)
-                sql_cust = f"""
-                    SELECT TOP 10 ISNULL(c.NamaLgn, 'Lain-Lain') AS Customer, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
-                    FROM [{db_name}].[dbo].[SalesInvoiceHeaders] sih
-                    JOIN [{db_name}].[dbo].[SalesInvoiceItems] sii ON sih.SalesInvoiceHeaderId = sii.SalesInvoiceHeaderId
-                    LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                    WHERE {date_cond} 
-                      AND MONTH(sih.TglFaktur) IN ({months_str})
-                      {affiliate_clause}
-                    GROUP BY c.NamaLgn
-                    ORDER BY TotalOmzet DESC
-                """
-                cur.execute(sql_cust)
+                # C. Top Customers
+                cur.execute(builder.build_top_customers_query(q_year, active_months, segment, top_n=10))
                 for r in cur.fetchall():
                     c_name = r[0]
                     val_m = round(float(r[1] or 0) / 1e9, 2)
                     top_customers_dict[c_name] = top_customers_dict.get(c_name, 0.0) + val_m
 
-                # D. Product Categories (Strictly bounded by date_cond of the year)
-                sql_cat = f"""
-                    SELECT TOP 10 ISNULL(cat.NamaKategory, 'UMUM') AS Kategori, SUM(sii.Qty * sii.HargaJual) AS TotalOmzet
-                    FROM [{db_name}].[dbo].[SalesInvoiceItems] sii
-                    JOIN [{db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
-                    LEFT JOIN [{db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
-                    LEFT JOIN [{db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
-                    LEFT JOIN [{db_name}].[dbo].[InventoryCategories] cat ON inv.KodeKategory = cat.KodeKategory
-                    LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                    WHERE {date_cond} 
-                      AND MONTH(sih.TglFaktur) IN ({months_str})
-                      {affiliate_clause}
-                    GROUP BY cat.NamaKategory
-                    ORDER BY TotalOmzet DESC
-                """
+                # D. Product Categories
                 try:
-                    cur.execute(sql_cat)
+                    cur.execute(builder.build_product_categories_query(q_year, active_months, segment, top_n=10))
                     for r in cur.fetchall():
                         cat_name = r[0] or "UMUM"
                         raw_rp = float(r[1] or 0)
-                        val_m = raw_rp / 1e9
-                        categories_dict[cat_name] = categories_dict.get(cat_name, 0.0) + val_m
+                        categories_dict[cat_name] = categories_dict.get(cat_name, 0.0) + (raw_rp / 1e9)
                         categories_raw_dict[cat_name] = categories_raw_dict.get(cat_name, 0.0) + raw_rp
                 except Exception as cat_err:
                     logger.debug(f"Categories query skipped for {db_name}: {cat_err}")
 
-                # E. Query Dynamic Affiliate Counterparty Breakdown from Live Database
+                # E. Dynamic Affiliate Counterparty Breakdown
                 try:
-                    aff_filter_clauses = [f"c.NamaLgn LIKE '%{company}%'" for company in settings.AFFILIATED_COMPANIES]
-                    aff_where_str = " OR ".join(aff_filter_clauses)
-                    exclusion_clause = ""
-                    if is_amg and q_year == 2025:
-                        exclusion_clause = "AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')"
-                    elif is_amg and q_year == 2026:
-                        exclusion_clause = "AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('421.1/INV/AMG-ANR/VIII/26', '421.2/INV/AMG-ANR/VIII/26', '436/INV/AMG-BLS/IX/26(PPN KELUARAN)', '376/INV/AMG-MAR/VIII/26(1)', '387/INV/AMG-ASL/VIII/26 (1)', '236/INV/AMG-GH/V/26(1)')"
-
-                    sql_aff_live = f"""
-                        SELECT 
-                            CASE 
-                                WHEN c.NamaLgn LIKE '%Agrochem Mega Globalindo%' THEN 'AMG'
-                                WHEN c.NamaLgn LIKE '%Agrofarm Nusa Raya%' THEN 'ANR'
-                                WHEN c.NamaLgn LIKE '%Agri Prime International%' THEN 'API'
-                                WHEN c.NamaLgn LIKE '%Mycotech Agro Asia%' THEN 'MAA'
-                                WHEN c.NamaLgn LIKE '%Sarana Agro Panata%' THEN 'SAP'
-                                WHEN c.NamaLgn LIKE '%Sarana Benih Panata%' THEN 'SBP'
-                                WHEN c.NamaLgn LIKE '%Talenta Tiga Muda%' THEN 'TTM'
-                                ELSE 'OTH'
-                            END AS CounterpartyCode,
-                            ROUND(SUM(sii.Qty * sii.HargaJual), 2) AS TotalOmzet
-                        FROM [{db_name}].[dbo].[SalesInvoiceHeaders] sih
-                        JOIN [{db_name}].[dbo].[SalesInvoiceItems] sii ON sih.SalesInvoiceHeaderId = sii.SalesInvoiceHeaderId
-                        LEFT JOIN [{db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
-                        WHERE {date_cond}
-                          AND MONTH(sih.TglFaktur) IN ({months_str})
-                          AND ({aff_where_str})
-                          {exclusion_clause}
-                        GROUP BY 
-                            CASE 
-                                WHEN c.NamaLgn LIKE '%Agrochem Mega Globalindo%' THEN 'AMG'
-                                WHEN c.NamaLgn LIKE '%Agrofarm Nusa Raya%' THEN 'ANR'
-                                WHEN c.NamaLgn LIKE '%Agri Prime International%' THEN 'API'
-                                WHEN c.NamaLgn LIKE '%Mycotech Agro Asia%' THEN 'MAA'
-                                WHEN c.NamaLgn LIKE '%Sarana Agro Panata%' THEN 'SAP'
-                                WHEN c.NamaLgn LIKE '%Sarana Benih Panata%' THEN 'SBP'
-                                WHEN c.NamaLgn LIKE '%Talenta Tiga Muda%' THEN 'TTM'
-                                ELSE 'OTH'
-                            END
-                    """
-                    cur.execute(sql_aff_live)
+                    cur.execute(builder.build_live_affiliate_query(q_year, active_months))
                     for r_aff in cur.fetchall():
-                        cp_code = r_aff[0]
-                        val_aff = float(r_aff[1] or 0)
+                        cp_code, val_aff = r_aff[0], float(r_aff[1] or 0)
                         if cp_code != "OTH" and val_aff > 0:
                             live_affiliate_dict[cp_code] = live_affiliate_dict.get(cp_code, 0.0) + val_aff
                 except Exception as aff_err:
-                    logger.debug(f"Live affiliate counterparties query skipped: {aff_err}")
+                    logger.debug(f"Live affiliate query skipped: {aff_err}")
 
         except Exception as e:
             logger.error(f"Error querying live database {db_name}: {e}")
 
-    # Fallback to verified reference spreadsheet figures if live database connection returned 0
+    # 5. Resilience Fallback: Triggered only when SQL database returned 0 (e.g. offline/unconnected)
     if sum(monthly_raw_data.values()) == 0:
-        logger.info(f"Populating reference verified data for entity={entity}, year={year}")
-        is_amg_only = entity in ("AMG", "AGC")
+        logger.info(f"Populating offline reference data for entity={entity}, year={year}")
         target_year = 2026 if (is_all_years or year not in (2024, 2025, 2026)) else year
-        
-        # Monthly weights matching seasonality
-        if target_year == 2026:
-            # 9 active months Jan-Sep (Cut-off 25 Sep 2026)
-            weights_2026 = {
-                1: 13701325200.0,
-                2: 36516248813.35,
-                3: 29590209749.72,
-                4: 16976572623.92,
-                5: 21789570254.43,
-                6: 35768854788.35,
-                7: 43281690151.0,
-                8: 41075139769.85,
-                9: 47165330709.78
-            }
-            # Adjust totals to match exact spreadsheet numbers:
-            if segment == "oth":
-                tot_erp_ref = 250754910220.0 if is_amg_only else 251691395820.0
-                tot_fin_ref = 244746661476.0 if is_amg_only else 245683147076.0
-                sum_weights = sum(weights_2026.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2026.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
-            elif segment == "affiliate":
-                if is_amg_only:
-                    # Real monthly distribution for AMG 2026 affiliate (PT API only = Rp 72.140.750):
-                    # Feb (m=2): 032/INV/AMG-API/II/26 = Rp 168.750
-                    # May (m=5): 191..195/INV/AMG-API/V/26 = Rp 71.972.000
-                    # Aug (m=8): 421.1 & 421.2 klaim transport ANR = Rp 525.966.152 (ERP only)
-                    for m in active_months:
-                        m_name = month_names[m]
-                        if m == 2:
-                            monthly_raw_data[m_name] = 168750.0
-                            monthly_fin_data[m_name] = 168750.0
-                        elif m == 5:
-                            monthly_raw_data[m_name] = 71972000.0
-                            monthly_fin_data[m_name] = 71972000.0
-                        elif m == 8:
-                            monthly_raw_data[m_name] = 525966152.0
-                            monthly_fin_data[m_name] = 0.0
-                        else:
-                            monthly_raw_data[m_name] = 0.0
-                            monthly_fin_data[m_name] = 0.0
-                else:
-                    # Consolidated Group 2026 Affiliate Target: Rp 274.139.065.356,00
-                    tot_fin_ref = 274139065356.0
-                    tot_erp_ref = 274665031508.0  # Includes ERP-only ANR transport claim (525.966.152)
-                    sum_weights = sum(weights_2026.get(m, 0.0) for m in active_months) or 1.0
-                    for m in active_months:
-                        m_name = month_names[m]
-                        ratio = weights_2026.get(m, 0.0) / sum_weights
-                        monthly_raw_data[m_name] = tot_erp_ref * ratio
-                        monthly_fin_data[m_name] = tot_fin_ref * ratio
-            else:
-                tot_erp_ref = 250827050970.0 if is_amg_only else 251763536570.0
-                tot_fin_ref = 244818802226.0 if is_amg_only else 245755287826.0
-                sum_weights = sum(weights_2026.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2026.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
+        monthly_raw_data, monthly_fin_data = get_offline_reference_data(
+            entity=norm_ent,
+            year=target_year,
+            segment=segment,
+            active_months=active_months
+        )
 
-        elif target_year == 2025:
-            # 12 active months
-            weights_2025 = {
-                1: 11445431165.51, 2: 16701379009.0, 3: 19155998510.99,
-                4: 28609816591.54, 5: 15992458729.67, 6: 11779996798.18,
-                7: 16758119347.88, 8: 35229915606.08, 9: 27413134475.48,
-                10: 28178664037.40, 11: 17970685167.95, 12: 26584883838.0
-            }
-            if segment == "oth":
-                tot_erp_ref = 255781618277.0 if is_amg_only else 255781618276.0
-                tot_fin_ref = 255631449068.0
-                sum_weights = sum(weights_2025.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2025.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
-            elif segment == "affiliate":
-                if is_amg_only:
-                    # Real monthly distribution for AMG 2025 affiliate (PT API only = Rp 38.865.000):
-                    # Feb (m=2): 048 & 073/INV/AMG-API/II/25 = Rp 2.190.000
-                    # Apr (m=4): 218/INV/AMG-API/IV/25 = Rp 3.000.000
-                    # Aug (m=8): 391 (ANR 29.109.750, ERP only) + 403 (API 325.000) = Rp 29.434.750 ERP / Rp 325.000 Fin
-                    # Nov (m=11): 527/INV/AMG-API/XI/25 = Rp 16.225.000
-                    # Dec (m=12): 609 & 610/INV/AMG-API/XII/25 = Rp 17.125.000
-                    for m in active_months:
-                        m_name = month_names[m]
-                        if m == 2:
-                            monthly_raw_data[m_name] = 2190000.0
-                            monthly_fin_data[m_name] = 2190000.0
-                        elif m == 4:
-                            monthly_raw_data[m_name] = 3000000.0
-                            monthly_fin_data[m_name] = 3000000.0
-                        elif m == 8:
-                            monthly_raw_data[m_name] = 29434750.0
-                            monthly_fin_data[m_name] = 325000.0
-                        elif m == 11:
-                            monthly_raw_data[m_name] = 16225000.0
-                            monthly_fin_data[m_name] = 16225000.0
-                        elif m == 12:
-                            monthly_raw_data[m_name] = 17125000.0
-                            monthly_fin_data[m_name] = 17125000.0
-                        else:
-                            monthly_raw_data[m_name] = 0.0
-                            monthly_fin_data[m_name] = 0.0
-                else:
-                    # Consolidated Group 2025 Affiliate Target: Rp 209.517.357.488,00
-                    tot_fin_ref = 209517357488.0
-                    tot_erp_ref = 209546467238.0  # Includes ERP-only ANR invoice (29.109.750)
-                    sum_weights = sum(weights_2025.get(m, 0.0) for m in active_months) or 1.0
-                    for m in active_months:
-                        m_name = month_names[m]
-                        ratio = weights_2025.get(m, 0.0) / sum_weights
-                        monthly_raw_data[m_name] = tot_erp_ref * ratio
-                        monthly_fin_data[m_name] = tot_fin_ref * ratio
-            else:
-                tot_erp_ref = 255820483277.0 if is_amg_only else 255820483276.0
-                tot_fin_ref = 255670314068.0
-                sum_weights = sum(weights_2025.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2025.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
-
-        elif target_year == 2024:
-            weights_2024 = {
-                1: 9022982875.0, 2: 19134564802.10, 3: 30053344623.65,
-                4: 17858395812.16, 5: 30540139291.98, 6: 10344827983.59,
-                7: 8961744449.29, 8: 10518583405.40, 9: 30374472281.75,
-                10: 13210131307.45, 11: 3507984554.01, 12: 4050382799.0
-            }
-            if segment == "oth":
-                tot_erp_ref = 187341666686.0 if is_amg_only else 187341666686.0
-                tot_fin_ref = 186966591714.0
-                sum_weights = sum(weights_2024.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2024.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
-            elif segment == "affiliate":
-                if is_amg_only:
-                    # Real monthly distribution for AMG 2024 affiliate (API Rp 162.627.500 + SBP Rp 73.260.000 = Rp 235.887.500):
-                    # Feb (m=2): SBP = Rp 73.260.000
-                    # May (m=5): API = Rp 61.100.000
-                    # Sep (m=9): API = Rp 69.687.500
-                    # Nov (m=11): API = Rp 31.840.000
-                    for m in active_months:
-                        m_name = month_names[m]
-                        if m == 2:
-                            monthly_raw_data[m_name] = 73260000.0
-                            monthly_fin_data[m_name] = 73260000.0
-                        elif m == 5:
-                            monthly_raw_data[m_name] = 61100000.0
-                            monthly_fin_data[m_name] = 61100000.0
-                        elif m == 9:
-                            monthly_raw_data[m_name] = 69687500.0
-                            monthly_fin_data[m_name] = 69687500.0
-                        elif m == 11:
-                            monthly_raw_data[m_name] = 31840000.0
-                            monthly_fin_data[m_name] = 31840000.0
-                        else:
-                            monthly_raw_data[m_name] = 0.0
-                            monthly_fin_data[m_name] = 0.0
-                else:
-                    # Consolidated Group 2024 Affiliate Target: Rp 168.723.398.532,00
-                    tot_fin_ref = 168723398532.0
-                    tot_erp_ref = 168723398532.0
-                    sum_weights = sum(weights_2024.get(m, 0.0) for m in active_months) or 1.0
-                    for m in active_months:
-                        m_name = month_names[m]
-                        ratio = weights_2024.get(m, 0.0) / sum_weights
-                        monthly_raw_data[m_name] = tot_erp_ref * ratio
-                        monthly_fin_data[m_name] = tot_fin_ref * ratio
-            else:
-                tot_erp_ref = 187577554186.0 if is_amg_only else 187577554188.0
-                tot_fin_ref = 187202479214.0
-                sum_weights = sum(weights_2024.get(m, 0.0) for m in active_months) or 1.0
-                for m in active_months:
-                    m_name = month_names[m]
-                    ratio = weights_2024.get(m, 0.0) / sum_weights
-                    monthly_raw_data[m_name] = tot_erp_ref * ratio
-                    monthly_fin_data[m_name] = tot_fin_ref * ratio
-
-    # Calculate consolidated totals for Financial Layer and ERP Raw
     total_fin_real = sum(monthly_fin_data.values())
     total_erp_real = sum(monthly_raw_data.values())
 
-    # Build formatted monthly list with Dual-Layer & Reconciliation metrics
+    # 6. Build Dual-Layer Reconciliation Table Items
     monthly_list = []
     for m_idx in active_months:
-        m_name = month_names[m_idx]
+        m_name = MONTH_NAMES[m_idx]
         raw_erp = monthly_raw_data.get(m_name, 0.0)
         raw_fin = monthly_fin_data.get(m_name, 0.0)
         val_erp_m = round(raw_erp / 1e9, 2)
@@ -829,11 +214,9 @@ def get_live_overview_from_sql(
 
         monthly_list.append({
             "month": m_name,
-            # Primary revenue displayed on main chart is Laporan Keuangan (Adjusted / Single Source of Truth)
             "revenue": val_fin_m,
             "raw_revenue": round(raw_fin, 2),
             "label": f"{val_fin_m:.2f}".replace(".", ","),
-            # Explicit Dual-Layer & Reconciliation Fields for spreadsheet matching
             "erp_revenue": val_erp_m,
             "erp_raw_revenue": round(raw_erp, 2),
             "fin_revenue": val_fin_m,
@@ -843,7 +226,7 @@ def get_live_overview_from_sql(
             "status": status,
         })
 
-    # Build formatted top customers list (Top 5) - Exclude audit adjustment synthetic rows
+    # 7. Format Top Customers (Top 5)
     filtered_customers = {
         name: rev for name, rev in top_customers_dict.items()
         if "Penyesuaian Audit" not in name and "Selisih Pembukuan" not in name
@@ -854,9 +237,9 @@ def get_live_overview_from_sql(
         for name, rev in top_cust_sorted
     ]
 
-    # Build formatted categories list with exact raw rupiah and percentage
+    # 8. Format Product Categories (Donut Chart)
     total_cat_raw = sum(categories_raw_dict.values()) or (total_fin_real or total_erp_real or 1.0)
-    colors = ["#1E3A8A", "#0D9488", "#D97706", "#64748B", "#2563EB", "#7C3AED", "#059669"]
+    category_palette = ["#1E3A8A", "#0D9488", "#D97706", "#64748B", "#2563EB", "#7C3AED", "#059669"]
     category_list = []
     for idx, (cat_name, cat_val) in enumerate(sorted(categories_dict.items(), key=lambda x: x[1], reverse=True)):
         raw_val = categories_raw_dict.get(cat_name, 0.0)
@@ -867,33 +250,26 @@ def get_live_overview_from_sql(
             "revenue_m": round(cat_val, 2),
             "raw_revenue": round(raw_val, 2),
             "formatted_rp": f"Rp {raw_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-            "color": colors[idx % len(colors)]
+            "color": category_palette[idx % len(category_palette)]
         })
 
-    # Build affiliate counterparty breakdown list
+    # 9. Format Intercompany Affiliate Breakdown (Cards in Modal)
     affiliate_breakdown = []
-    e_key = "AMG" if entity in ("AMG", "AGC") else ("ANR" if entity == "ANR" else ("API" if entity == "API" else "Semua"))
     target_y = 2026 if (is_all_years or year not in (2024, 2025, 2026)) else year
     years_to_check = [2024, 2025, 2026] if is_all_years else [target_y]
 
     aff_amounts: Dict[str, float] = {}
     if live_affiliate_dict:
-        # Use 100% dynamic live SQL query result
+        # Prioritize 100% dynamic live SQL query result
         aff_amounts = live_affiliate_dict
     else:
+        # Registry benchmark
         for y_chk in years_to_check:
-            if e_key == "Semua":
-                for (p_ent, p_yr), sub_dict in AFFILIATE_BENCHMARKS.items():
-                    if p_yr == y_chk:
-                        for c_code, amt in sub_dict.items():
-                            aff_amounts[c_code] = aff_amounts.get(c_code, 0.0) + amt
-            else:
-                sub_dict = AFFILIATE_BENCHMARKS.get((e_key, y_chk), {})
-                for c_code, amt in sub_dict.items():
-                    aff_amounts[c_code] = aff_amounts.get(c_code, 0.0) + amt
+            sub_dict = get_affiliate_breakdown(norm_ent, y_chk)
+            for c_code, amt in sub_dict.items():
+                aff_amounts[c_code] = aff_amounts.get(c_code, 0.0) + amt
 
     tot_aff_benchmark = sum(aff_amounts.values()) or 1.0
-
     for c_code, b_amt in sorted(aff_amounts.items(), key=lambda x: x[1], reverse=True):
         pct = round((b_amt / tot_aff_benchmark) * 100, 2) if tot_aff_benchmark > 0 else 0.0
         affiliate_breakdown.append({
