@@ -508,9 +508,8 @@ export function MonthlyRevenueChart({
             (d.raw_revenue != null && d.raw_revenue > 0
               ? d.raw_revenue
               : (d.fin_revenue ?? d.revenue ?? 0) * 1e9);
-          const formattedRp = Number(rawVal).toLocaleString("id-ID", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
+            maximumFractionDigits: 0,
           });
           const pct =
             totalFinRawRevenue > 0
@@ -523,7 +522,7 @@ export function MonthlyRevenueChart({
           return `${idx + 1}\t${fullMonth} ${displayYear}\tIDR ${valM} M\tRp ${formattedRp}\t${pct}%\t${status}`;
         })
         .join("\n");
-      summary = `\nTotal\tTotal Data Keuangan (${displayYear})\tIDR ${totalFinRevenue.toFixed(2)} M\tRp ${Number(totalFinRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%\t✓ Terverifikasi Audit`;
+      summary = `\nTotal\tTotal Data Keuangan (${displayYear})\tIDR ${totalFinRevenue.toFixed(2)} M\tRp ${Math.round(totalFinRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 0 })}\t100,0%\t✓ Terverifikasi Audit`;
     } else if (activeModalTab === "erp") {
       header = "No\tBulan Transaksi\tOmzet ERP Murni (IDR Miliar)\tNilai Faktur ERP (Rp)\t% Kontribusi Total\tStatus Performa\n";
       rows = data
@@ -535,9 +534,8 @@ export function MonthlyRevenueChart({
             (d.raw_revenue != null && d.raw_revenue > 0
               ? d.raw_revenue
               : (d.erp_revenue ?? d.revenue ?? 0) * 1e9);
-          const formattedRp = Number(rawVal).toLocaleString("id-ID", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
+            maximumFractionDigits: 0,
           });
           const pct =
             totalErpRawRevenue > 0
@@ -550,7 +548,7 @@ export function MonthlyRevenueChart({
           return `${idx + 1}\t${fullMonth} ${displayYear}\tIDR ${valM} M\tRp ${formattedRp}\t${pct}%\t${status}`;
         })
         .join("\n");
-      summary = `\nTotal\tTotal ERP Murni (${displayYear})\tIDR ${totalErpRevenue.toFixed(2)} M\tRp ${Number(totalErpRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%\t✓ Log Database ERP`;
+      summary = `\nTotal\tTotal ERP Murni (${displayYear})\tIDR ${totalErpRevenue.toFixed(2)} M\tRp ${Math.round(totalErpRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 0 })}\t100,0%\t✓ Log Database ERP`;
     } else {
       // Tab 3: Rekonsiliasi & Varian Selisih (Spreadsheet Match)
       header = "No\tBulan Transaksi\tData Riil ERP (Rp)\tData Keuangan (Rp)\tSelisih Varian (Keuangan vs ERP)\t% Varian\tStatus Audit\n";
@@ -569,17 +567,14 @@ export function MonthlyRevenueChart({
               : (d.fin_revenue ?? d.revenue ?? 0) * 1e9);
           const varRp = d.variance_rp ?? rawFin - rawErp;
           const pctVar = rawErp > 0 ? ((varRp / rawErp) * 100).toFixed(2) : "0,00";
-          const formattedErp = Number(rawErp).toLocaleString("id-ID", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+          const formattedErp = Math.round(rawErp).toLocaleString("id-ID", {
+            maximumFractionDigits: 0,
           });
-          const formattedFin = Number(rawFin).toLocaleString("id-ID", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+          const formattedFin = Math.round(rawFin).toLocaleString("id-ID", {
+            maximumFractionDigits: 0,
           });
-          const formattedVar = Number(varRp).toLocaleString("id-ID", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
+          const formattedVar = Math.round(varRp).toLocaleString("id-ID", {
+            maximumFractionDigits: 0,
           });
           const status =
             d.status ||
@@ -593,14 +588,14 @@ export function MonthlyRevenueChart({
           return `${idx + 1}\t${fullMonth} ${displayYear}\tRp ${formattedErp}\tRp ${formattedFin}\tRp ${formattedVar}\t${pctVar}%\t${status}`;
         })
         .join("\n");
-      const formattedTotalErp = Number(totalErpRawRevenue).toLocaleString("id-ID", {
-        maximumFractionDigits: 2,
+      const formattedTotalErp = Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+        maximumFractionDigits: 0,
       });
-      const formattedTotalFin = Number(totalFinRawRevenue).toLocaleString("id-ID", {
-        maximumFractionDigits: 2,
+      const formattedTotalFin = Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+        maximumFractionDigits: 0,
       });
-      const formattedNetVar = Number(netVarianceRaw).toLocaleString("id-ID", {
-        maximumFractionDigits: 2,
+      const formattedNetVar = Math.round(netVarianceRaw).toLocaleString("id-ID", {
+        maximumFractionDigits: 0,
       });
       const netPct =
         totalErpRawRevenue > 0
@@ -1060,17 +1055,14 @@ export function MonthlyRevenueChart({
                             rawErp > 0 ? ((varRp / rawErp) * 100).toFixed(2) : "0,00";
                           const isMatch = Math.abs(varRp) < 1;
 
-                          const formattedErp = Number(rawErp).toLocaleString("id-ID", {
-                            minimumFractionDigits: rawErp % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                          const formattedErp = Math.round(rawErp).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           });
-                          const formattedFin = Number(rawFin).toLocaleString("id-ID", {
-                            minimumFractionDigits: rawFin % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                          const formattedFin = Math.round(rawFin).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           });
-                          const formattedVar = Number(Math.abs(varRp)).toLocaleString("id-ID", {
-                            minimumFractionDigits: varRp % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                          const formattedVar = Math.round(Math.abs(varRp)).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           });
 
                           return (
@@ -1100,7 +1092,7 @@ export function MonthlyRevenueChart({
                                 }`}
                               >
                                 {isMatch
-                                  ? "Rp 0,00"
+                                  ? "Rp 0"
                                   : `${varRp > 0 ? "+ " : "- "}Rp ${formattedVar}`}
                               </td>
                               <td
@@ -1144,22 +1136,22 @@ export function MonthlyRevenueChart({
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap">
                             Rp{" "}
-                            {Number(totalErpRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 2,
+                            {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
                             })}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-xs whitespace-nowrap">
                             Rp{" "}
-                            {Number(totalFinRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 2,
+                            {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
                             })}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-xs whitespace-nowrap text-emerald-700 dark:text-emerald-400">
                             {Math.abs(netVarianceRaw) < 1
-                              ? "Rp 0,00"
-                              : `${netVarianceRaw > 0 ? "+" : "-"}Rp ${Number(
+                              ? "Rp 0"
+                              : `${netVarianceRaw > 0 ? "+" : "-"}Rp ${Math.round(
                                   Math.abs(netVarianceRaw)
-                                ).toLocaleString("id-ID", { maximumFractionDigits: 2 })}`}
+                                ).toLocaleString("id-ID", { maximumFractionDigits: 0 })}`}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
                             {totalErpRawRevenue > 0
@@ -1208,9 +1200,8 @@ export function MonthlyRevenueChart({
                             totalFinRawRevenue > 0
                               ? ((rawVal / totalFinRawRevenue) * 100).toFixed(1)
                               : "0,0";
-                          const formattedRp = Number(rawVal).toLocaleString("id-ID", {
-                            minimumFractionDigits: rawVal % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           });
 
                           return (
@@ -1260,8 +1251,8 @@ export function MonthlyRevenueChart({
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
                             Rp{" "}
-                            {Number(totalFinRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 2,
+                            {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
                             })}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
@@ -1306,9 +1297,8 @@ export function MonthlyRevenueChart({
                             totalErpRawRevenue > 0
                               ? ((rawVal / totalErpRawRevenue) * 100).toFixed(1)
                               : "0,0";
-                          const formattedRp = Number(rawVal).toLocaleString("id-ID", {
-                            minimumFractionDigits: rawVal % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           });
 
                           return (
@@ -1358,8 +1348,8 @@ export function MonthlyRevenueChart({
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
                             Rp{" "}
-                            {Number(totalErpRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 2,
+                            {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
                             })}
                           </td>
                           <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">

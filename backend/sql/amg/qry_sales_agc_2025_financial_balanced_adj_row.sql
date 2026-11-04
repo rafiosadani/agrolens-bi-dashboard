@@ -57,6 +57,8 @@ WITH RawCombinedData AS (
     LEFT JOIN  [AGCdb002].[dbo].[CustomerGroups] cg       ON c.CustomerGroupId = cg.CustomerGroupId
     LEFT JOIN  [AGCdb002].[dbo].[Salesmen] sm             ON sih.KodeSales = sm.KodeSales
     WHERE sih.TglFaktur >= '2025-01-01' AND sih.TglFaktur < '2026-01-01'
+      -- EKSKLUSI NOTA NON-KOMERSIAL KLAIM TRANSPORTASI
+      AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')
 ),
 CalculatedNet AS (
     SELECT 
@@ -130,28 +132,13 @@ Base AS (
     WHERE r.rn = 1
 ),
 
--- TARGET KEUANGAN RESMI AMG 2025
-TargetFinansial AS (
-    SELECT CAST(255670314068.00 AS DECIMAL(38,2)) AS TargetValue
-),
-
-CurrentERP AS (
-    SELECT SUM(Penjualan) AS CurrentValue FROM Base
-),
-
--- KALKULASI OTOMATIS SELISIH KOREKSI
-AdjustmentCalculator AS (
-    SELECT (t.TargetValue - c.CurrentValue) AS SelisihKoreksi 
-    FROM TargetFinansial t, CurrentERP c
-),
-
--- SUNTIKAN BARIS PENYESUAIAN KEUANGAN KHUSUS (DUMMY INVOICE)
+-- SUNTIKAN BARIS PENYESUAIAN KEUANGAN KHUSUS (AUDIT ADJUSTMENTS PER BULAN)
 AdjustmentRow AS (
     SELECT 
-        12                                                      AS [Periode],
+        v.periode                                               AS [Periode],
         2025                                                    AS [Tahun],
-        CAST('ADJ-AUDIT/AMG/2025' AS VARCHAR(100))              AS [No Invoice],
-        CAST('2025-12-31' AS DATE)                              AS [Tgl Trn],
+        CAST(v.inv AS VARCHAR(100))                             AS [No Invoice],
+        CAST(v.tgl AS DATE)                                     AS [Tgl Trn],
         CAST('Penyesuaian Audit Keuangan / Selisih Pembukuan' AS VARCHAR(255)) AS [Nama Customer],
         CAST('UMUM' AS VARCHAR(100))                            AS [Produk],
         CAST('Tidak Ada Salesman' AS VARCHAR(100))              AS [Nama Sales],
@@ -167,10 +154,7 @@ AdjustmentRow AS (
         CAST(0 AS DECIMAL(18,2))                                AS [Laba / Rugi Konsol],
         CAST(0 AS DECIMAL(18,2))                                AS [Jumlah HPP],
         CAST(0 AS DECIMAL(18,2))                                AS [Jumlah (Gross Profit)],
-        
-        -- NILAI PENJUALAN OTOMATIS DARI SELISIH KOREKSI
-        CAST((SELECT SelisihKoreksi FROM AdjustmentCalculator) AS DECIMAL(18,2)) AS [Penjualan],
-        
+        CAST(v.nilai AS DECIMAL(18,2))                          AS [Penjualan],
         CAST(0 AS DECIMAL(18,2))                                AS [Nilai HPP],
         CAST(0 AS DECIMAL(18,2))                                AS [Nilai HPP Konsol],
         CAST('OTH' AS VARCHAR(10))                              AS [ELIMINASI],
@@ -178,6 +162,15 @@ AdjustmentRow AS (
         CAST('OTH' AS VARCHAR(100))                             AS [GROUP],
         CAST('Koreksi Selisih Audit & Pembukuan' AS VARCHAR(255)) AS [Nama Barang Standard],
         CAST('00000000-0000-0000-0000-000000000000' AS UNIQUEIDENTIFIER) AS TransactionItemId
+    FROM (VALUES
+        ('ADJ/AUDIT-FEB/2025',  2, '2025-02-28',  -4579762.00),
+        ('ADJ/AUDIT-MAR/2025',  3, '2025-03-31',      3621.01),
+        ('ADJ/AUDIT-JUN/2025',  6, '2025-06-30',   -367567.18),
+        ('ADJ/AUDIT-AGU/2025',  8, '2025-08-31',   1000000.00),
+        ('ADJ/AUDIT-OKT/2025', 10, '2025-10-31', -61091000.40),
+        ('ADJ/AUDIT-NOV/2025', 11, '2025-11-30',   -981518.95),
+        ('ADJ/AUDIT-DES/2025', 12, '2025-12-31', -55043231.73)
+    ) v(inv, periode, tgl, nilai)
 ),
 
 CombinedFinal AS (

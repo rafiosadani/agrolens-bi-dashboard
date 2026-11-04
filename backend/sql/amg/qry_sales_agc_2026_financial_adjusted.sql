@@ -42,7 +42,7 @@ WITH RawCombinedData AS (
     LEFT JOIN  [AGCdb003].[dbo].[Customers] c             ON sih.CustomerId = c.CustomerId
     LEFT JOIN  [AGCdb003].[dbo].[CustomerGroups] cg       ON c.CustomerGroupId = cg.CustomerGroupId
     LEFT JOIN  [AGCdb003].[dbo].[Salesmen] sm             ON sih.KodeSales = sm.KodeSales
-    WHERE sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2026-09-26'
+    WHERE sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2027-01-01'
       -- EKSKLUSI 6 NOTA ERP-ONLY YANG TIDAK ADA DI LAPORAN KEUANGAN
       AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN (
           '421.1/INV/AMG-ANR/VIII/26',
@@ -143,7 +143,7 @@ Base AS (
 -- SUNTIKAN RETUR/KOREKSI PARSIAL FINANCE MENGGUNAKAN UNION ALL
 tambah AS (
     SELECT 
-        MONTH(CAST(v.tgl AS DATE))                  AS [Periode], 
+        v.periode                                   AS [Periode], 
         2026                                        AS [Tahun], 
         v.inv                                       AS [No Invoice], 
         CAST(v.tgl AS DATE)                         AS [Tgl Trn],
@@ -171,12 +171,16 @@ tambah AS (
         CAST('Koreksi Retur / Potongan Finance' AS VARCHAR(200)) AS [Nama Barang Standard],
         CAST('00000000-0000-0000-0000-000000000000' AS UNIQUEIDENTIFIER) AS TransactionItemId
     FROM (VALUES
-        ('063/INV/AMG-RHM/II/26',          '2026-03-02', -10000,   -1038240),
-        ('068/INV/AMG-WKS/II/26',          '2026-03-02', -10000,   -1038240),
-        ('068/INV/AMG-WKS/II/26',          '2026-04-13',     -1,  -11500000),
-        ('075/INV/AMG-PBLP/II/26',         '2026-03-02',    -75,    -193550),
-        ('223/INV/AMG-BAM/V/26 REVISI INV','2026-07-27',    -10,    -377000)
-    ) v(inv, tgl, qty, nilai)
+        ('063/INV/AMG-RHM/II/26',          2, '2026-02-28', -10000,   -1038240.00),
+        ('068/INV/AMG-WKS/II/26',          2, '2026-02-28', -10000,   -1038240.00),
+        ('068/INV/AMG-WKS/II/26',          2, '2026-02-28',     -1,  -11500000.00),
+        ('075/INV/AMG-PBLP/II/26',         2, '2026-02-28',    -75,    -193550.00),
+        ('ADJ/RETUR-APR/2026',             4, '2026-04-30',      0,  -20750000.00),
+        ('ADJ/NOTA-291/VI/2026',           6, '2026-06-30',      0,      50000.08),
+        ('223/INV/AMG-BAM/V/26 REVISI INV',7, '2026-07-27',    -10,   20373000.00),
+        ('ADJ/CUTOFF-SEP/2026',            9, '2026-09-30',      0,  -24769750.00),
+        ('ADJ/CUTOFF-OKT/2026',           10, '2026-10-31',      0,   24769750.00)
+    ) v(inv, periode, tgl, qty, nilai)
 ),
 
 combined_final AS (

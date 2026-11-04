@@ -22,7 +22,7 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
         aff_clause = self.build_affiliate_clause(segment)
 
         if year == 2026:
-            # 2026 Financial Adjusted Model
+            # 2026 Financial Adjusted Model: Exclude 6 ERP-only, map 291/INV, apply retur adjustments in Tambah
             if segment != "affiliate":
                 tambah_clause = f""",
                 Tambah AS (
@@ -30,11 +30,15 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                         v.periode AS Bln,
                         CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
                     FROM (VALUES
-                        ('063/INV/AMG-RHM/II/26',          2, -1038240),
-                        ('068/INV/AMG-WKS/II/26',          2, -1038240),
-                        ('068/INV/AMG-WKS/II/26',          2, -11500000),
-                        ('075/INV/AMG-PBLP/II/26',         2, -193550),
-                        ('223/INV/AMG-BAM/V/26 REVISI INV',5, -377000)
+                        ('063/INV/AMG-RHM/II/26',          2, -1038240.00),
+                        ('068/INV/AMG-WKS/II/26',          2, -1038240.00),
+                        ('068/INV/AMG-WKS/II/26',          2, -11500000.00),
+                        ('075/INV/AMG-PBLP/II/26',         2, -193550.00),
+                        ('ADJ/RETUR-APR/2026',             4, -20750000.00),
+                        ('ADJ/NOTA-291/VI/2026',           6,     50000.08),
+                        ('223/INV/AMG-BAM/V/26 REVISI INV',7,  20373000.00),
+                        ('ADJ/CUTOFF-SEP/2026',            9, -24769750.00),
+                        ('ADJ/CUTOFF-OKT/2026',           10,  24769750.00)
                     ) v(inv, periode, nilai)
                     WHERE v.periode IN ({months_str})
                 ),
@@ -55,21 +59,7 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                         'AMG' AS [PT], 2026 AS TahunDb,
                         LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
                         CAST(sih.TglFaktur AS DATE) AS TglTrn,
-                        CASE 
-                            WHEN sih.NoBukti LIKE '%/XII/%' OR sih.NoBukti LIKE '%-XII-%' THEN 12
-                            WHEN sih.NoBukti LIKE '%/XI/%'  OR sih.NoBukti LIKE '%-XI-%'  THEN 11
-                            WHEN sih.NoBukti LIKE '%/X/%'   OR sih.NoBukti LIKE '%-X-%'   THEN 10
-                            WHEN sih.NoBukti LIKE '%/IX/%'  OR sih.NoBukti LIKE '%-IX-%'  THEN 9
-                            WHEN sih.NoBukti LIKE '%/VIII/%' OR sih.NoBukti LIKE '%-VIII-%' THEN 8
-                            WHEN sih.NoBukti LIKE '%/VII/%' OR sih.NoBukti LIKE '%-VII-%' THEN 7
-                            WHEN sih.NoBukti LIKE '%/VI/%'  OR sih.NoBukti LIKE '%-VI-%'  THEN 6
-                            WHEN sih.NoBukti LIKE '%/V/%'   OR sih.NoBukti LIKE '%-V-%'   THEN 5
-                            WHEN sih.NoBukti LIKE '%/IV/%'  OR sih.NoBukti LIKE '%-IV-%'  THEN 4
-                            WHEN sih.NoBukti LIKE '%/III/%' OR sih.NoBukti LIKE '%-III-%' THEN 3
-                            WHEN sih.NoBukti LIKE '%/II/%'  OR sih.NoBukti LIKE '%-II-%'  THEN 2
-                            WHEN sih.NoBukti LIKE '%/I/%'   OR sih.NoBukti LIKE '%-I-%'   THEN 1
-                            ELSE MONTH(sih.TglFaktur)
-                        END AS Bln,
+                        MONTH(sih.TglFaktur) AS Bln,
                         sii.Qty AS Qty,
                         COALESCE(NULLIF(sii.HargaNet, 0), 
                             (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
@@ -145,29 +135,41 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
             """
 
         elif year == 2025:
-            # 2025 Financial Model: Exclude nota 391 when calculating affiliate
-            extra_excl = ""
-            if segment == "affiliate":
-                extra_excl = "AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')"
+            # 2025 Financial Model: Exclude non-commercial transport claim 391 across all segments, apply audit adjustments
+            extra_excl = "AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')"
+
+            if segment != "affiliate":
+                tambah_clause = f""",
+                Tambah AS (
+                    SELECT 
+                        v.periode AS Bln,
+                        CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
+                    FROM (VALUES
+                        ('ADJ/AUDIT-FEB/2025',  2,  -4579762.00),
+                        ('ADJ/AUDIT-MAR/2025',  3,      3621.01),
+                        ('ADJ/AUDIT-JUN/2025',  6,   -367567.18),
+                        ('ADJ/AUDIT-AGU/2025',  8,   1000000.00),
+                        ('ADJ/AUDIT-OKT/2025', 10, -61091000.40),
+                        ('ADJ/AUDIT-NOV/2025', 11,   -981518.95),
+                        ('ADJ/AUDIT-DES/2025', 12, -55043231.73)
+                    ) v(inv, periode, nilai)
+                    WHERE v.periode IN ({months_str})
+                ),
+                Combined AS (
+                    SELECT Bln, Penjualan FROM Base
+                    UNION ALL
+                    SELECT Bln, Penjualan FROM Tambah
+                )"""
+            else:
+                tambah_clause = """,
+                Combined AS (
+                    SELECT Bln, Penjualan FROM Base
+                )"""
 
             return f"""
                 WITH RawData AS (
                     SELECT
-                        CASE 
-                            WHEN sih.NoBukti LIKE '%/XII/%' OR sih.NoBukti LIKE '%-XII-%' THEN 12
-                            WHEN sih.NoBukti LIKE '%/XI/%'  OR sih.NoBukti LIKE '%-XI-%'  THEN 11
-                            WHEN sih.NoBukti LIKE '%/X/%'   OR sih.NoBukti LIKE '%-X-%'   THEN 10
-                            WHEN sih.NoBukti LIKE '%/IX/%'  OR sih.NoBukti LIKE '%-IX-%'  THEN 9
-                            WHEN sih.NoBukti LIKE '%/VIII/%' OR sih.NoBukti LIKE '%-VIII-%' THEN 8
-                            WHEN sih.NoBukti LIKE '%/VII/%' OR sih.NoBukti LIKE '%-VII-%' THEN 7
-                            WHEN sih.NoBukti LIKE '%/VI/%'  OR sih.NoBukti LIKE '%-VI-%'  THEN 6
-                            WHEN sih.NoBukti LIKE '%/V/%'   OR sih.NoBukti LIKE '%-V-%'   THEN 5
-                            WHEN sih.NoBukti LIKE '%/IV/%'  OR sih.NoBukti LIKE '%-IV-%'  THEN 4
-                            WHEN sih.NoBukti LIKE '%/III/%' OR sih.NoBukti LIKE '%-III-%' THEN 3
-                            WHEN sih.NoBukti LIKE '%/II/%'  OR sih.NoBukti LIKE '%-II-%'  THEN 2
-                            WHEN sih.NoBukti LIKE '%/I/%'   OR sih.NoBukti LIKE '%-I-%'   THEN 1
-                            ELSE MONTH(sih.TglFaktur)
-                        END AS Bln,
+                        MONTH(sih.TglFaktur) AS Bln,
                         sii.Qty,
                         COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
                         CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
@@ -191,17 +193,47 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                 ),
                 Ranked AS (
                     SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
+                ),
+                Base AS (
+                    SELECT Bln, (Qty * HargaNet) AS Penjualan
+                    FROM Ranked
+                    WHERE rn = 1
                 )
-                SELECT Bln, ROUND(SUM(Qty * HargaNet), 2) AS MonthlyOmzet 
-                FROM Ranked 
-                WHERE rn = 1 AND Bln IN ({months_str})
+                {tambah_clause}
+                SELECT Bln, ROUND(SUM(Penjualan), 2) AS MonthlyOmzet 
+                FROM Combined 
+                WHERE Bln IN ({months_str})
                 GROUP BY Bln
                 ORDER BY Bln
             """
 
         else:
-            # 2024 Financial Model (With Typo Mapping, Roman Numeral Periode, and Net Deduplication)
-            period_expr = self.build_period_expression("sih.NoBukti", "sih.TglFaktur")
+            # 2024 Financial Model (With Typo Mapping, Invoice 128 adjustment, and Net Deduplication)
+            if segment != "affiliate":
+                tambah_clause = f""",
+                Tambah AS (
+                    SELECT 
+                        v.periode AS Bln,
+                        CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
+                    FROM (VALUES
+                        ('128/INV/AMG-DSU/III/24-KOR',  3, -374904999.65),
+                        ('ADJ/AUDIT-SEP/2024',          9,    -509999.75),
+                        ('ADJ/AUDIT-OKT/2024',         10,   -1356400.45),
+                        ('ADJ/AUDIT-DES/2024',         12,  376771401.38)
+                    ) v(inv, periode, nilai)
+                    WHERE v.periode IN ({months_str})
+                ),
+                Combined AS (
+                    SELECT Bln, Penjualan FROM Base
+                    UNION ALL
+                    SELECT Bln, Penjualan FROM Tambah
+                )"""
+            else:
+                tambah_clause = """,
+                Combined AS (
+                    SELECT Bln, Penjualan FROM Base
+                )"""
+
             return f"""
                 WITH RawCombinedData AS (
                     SELECT
@@ -215,7 +247,7 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                             ELSE LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', '')))
                         END AS NoInvoice, 
                         CAST(sih.TglFaktur AS DATE) AS TglTrn,
-                        {period_expr} AS Bln,
+                        MONTH(sih.TglFaktur) AS Bln,
                         sii.Qty AS Qty,
                         COALESCE(NULLIF(sii.HargaNet, 0), 
                             (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
@@ -259,12 +291,18 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                             ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC
                         ) AS rn
                     FROM FinalNetPrice
+                ),
+                Base AS (
+                    SELECT Bln, (Qty * HargaJualNet) AS Penjualan
+                    FROM RankedData
+                    WHERE rn = 1
                 )
+                {tambah_clause}
                 SELECT 
                     Bln, 
-                    ROUND(SUM(Qty * HargaJualNet), 2) AS MonthlyOmzet
-                FROM RankedData
-                WHERE rn = 1 AND Bln IN ({months_str})
+                    ROUND(SUM(Penjualan), 2) AS MonthlyOmzet
+                FROM Combined
+                WHERE Bln IN ({months_str})
                 GROUP BY Bln
                 ORDER BY Bln
             """

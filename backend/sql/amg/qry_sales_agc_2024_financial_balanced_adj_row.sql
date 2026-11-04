@@ -126,28 +126,13 @@ Base AS (
     WHERE r.rn = 1
 ),
 
--- TARGET KEUANGAN RESMI AMG 2024
-TargetFinansial AS (
-    SELECT CAST(187202479214.00 AS DECIMAL(38,2)) AS TargetValue
-),
-
-CurrentERP AS (
-    SELECT SUM(Penjualan) AS CurrentValue FROM Base
-),
-
--- KALKULASI OTOMATIS SELISIH KOREKSI
-AdjustmentCalculator AS (
-    SELECT (t.TargetValue - c.CurrentValue) AS SelisihKoreksi 
-    FROM TargetFinansial t, CurrentERP c
-),
-
--- SUNTIKAN BARIS PENYESUAIAN KEUANGAN KHUSUS (DUMMY INVOICE)
+-- SUNTIKAN BARIS PENYESUAIAN KEUANGAN KHUSUS (AUDIT ADJUSTMENTS PER BULAN)
 AdjustmentRow AS (
     SELECT 
-        12                                                      AS [Periode],
+        v.periode                                               AS [Periode],
         2024                                                    AS [Tahun],
-        CAST('ADJ-AUDIT/AMG/2024' AS VARCHAR(100))              AS [No Invoice],
-        CAST('2024-12-31' AS DATE)                              AS [Tgl Trn],
+        CAST(v.inv AS VARCHAR(100))                             AS [No Invoice],
+        CAST(v.tgl AS DATE)                                     AS [Tgl Trn],
         CAST('Penyesuaian Audit Keuangan / Selisih Pembukuan' AS VARCHAR(255)) AS [Nama Customer],
         CAST('UMUM' AS VARCHAR(100))                            AS [Produk],
         CAST('Tidak Ada Salesman' AS VARCHAR(100))              AS [Nama Sales],
@@ -163,10 +148,7 @@ AdjustmentRow AS (
         CAST(0 AS DECIMAL(18,2))                                AS [Laba / Rugi Konsol],
         CAST(0 AS DECIMAL(18,2))                                AS [Jumlah HPP],
         CAST(0 AS DECIMAL(18,2))                                AS [Jumlah (Gross Profit)],
-        
-        -- NILAI PENJUALAN OTOMATIS DARI SELISIH KOREKSI
-        CAST((SELECT SelisihKoreksi FROM AdjustmentCalculator) AS DECIMAL(18,2)) AS [Penjualan],
-        
+        CAST(v.nilai AS DECIMAL(18,2))                          AS [Penjualan],
         CAST(0 AS DECIMAL(18,2))                                AS [Nilai HPP],
         CAST(0 AS DECIMAL(18,2))                                AS [Nilai HPP Konsol],
         CAST('OTH' AS VARCHAR(10))                              AS [ELIMINASI],
@@ -174,6 +156,12 @@ AdjustmentRow AS (
         CAST('OTH' AS VARCHAR(100))                             AS [GROUP],
         CAST('Koreksi Selisih Audit & Pembukuan' AS VARCHAR(255)) AS [Nama Barang Standard],
         CAST('00000000-0000-0000-0000-000000000000' AS UNIQUEIDENTIFIER) AS TransactionItemId
+    FROM (VALUES
+        ('128/INV/AMG-DSU/III/24-KOR',  3, '2024-03-31', -374904999.65),
+        ('ADJ/AUDIT-SEP/2024',          9, '2024-09-30',    -509999.75),
+        ('ADJ/AUDIT-OKT/2024',         10, '2024-10-31',   -1356400.45),
+        ('ADJ/AUDIT-DES/2024',         12, '2024-12-31',  376771401.38)
+    ) v(inv, periode, tgl, nilai)
 ),
 
 CombinedFinal AS (
