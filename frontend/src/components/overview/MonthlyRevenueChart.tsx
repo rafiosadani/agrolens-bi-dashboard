@@ -26,6 +26,7 @@ interface MonthlyRevenueChartProps {
   segment?: string;
   databaseQueried?: string;
   affiliateBreakdown?: AffiliateBreakdownItem[];
+  auditSummary?: string;
 }
 
 const FULL_MONTH_NAMES: Record<string, string> = {
@@ -49,6 +50,7 @@ export function MonthlyRevenueChart({
   segment = "all",
   databaseQueried = "APIdb, AGCdb, AGFdb",
   affiliateBreakdown = [],
+  auditSummary,
 }: MonthlyRevenueChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -296,68 +298,58 @@ export function MonthlyRevenueChart({
           });
 
           return `
-            <div style="font-weight: 700; margin-bottom: 6px; color: ${
-              isDark ? "#94A3B8" : "#64748B"
+            <div style="font-weight: 700; margin-bottom: 6px; color: ${isDark ? "#94A3B8" : "#64748B"
             }; font-size: 11px;">
               Bulan ${fullMonth} ${displayYear}
             </div>
             <div style="display: flex; flex-direction: column; gap: 5px;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: ${
-                  isDark ? "#CBD5E1" : "#334155"
-                }; font-weight: 600;">
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: ${isDark ? "#CBD5E1" : "#334155"
+            }; font-weight: 600;">
                   <span style="width: 8px; height: 8px; border-radius: 2px; background: #2563EB;"></span>
                   Data Keuangan (Resmi):
                 </span>
-                <span style="font-size: 13px; font-weight: 700; color: ${
-                  isDark ? "#38BDF8" : "#1D4ED8"
-                }; font-family: monospace;">
+                <span style="font-size: 13px; font-weight: 700; color: ${isDark ? "#38BDF8" : "#1D4ED8"
+            }; font-family: monospace;">
                   IDR ${finFormatted} M
                 </span>
               </div>
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-                <span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${
-                  isDark ? "#94A3B8" : "#64748B"
-                };">
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: ${isDark ? "#94A3B8" : "#64748B"
+            };">
                   <span style="width: 8px; height: 8px; border-radius: 2px; background: #64748B;"></span>
                   Data Riil ERP (Murni):
                 </span>
-                <span style="font-size: 12px; font-weight: 600; color: ${
-                  isDark ? "#CBD5E1" : "#475569"
-                }; font-family: monospace;">
+                <span style="font-size: 12px; font-weight: 600; color: ${isDark ? "#CBD5E1" : "#475569"
+            }; font-family: monospace;">
                   IDR ${erpFormatted} M
                 </span>
               </div>
-              ${
-                !isMatch && rowData?.month === "Des"
-                  ? `
+              ${!isMatch && rowData?.month === "Des"
+              ? `
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 11px;">
                   <span style="color: ${isDark ? "#FBBF24" : "#D97706"};">Penyesuaian Tutup Buku (31 Des):</span>
-                  <span style="font-weight: 700; color: ${
-                    isDark ? "#FBBF24" : "#D97706"
-                  }; font-family: monospace;">
+                  <span style="font-weight: 700; color: ${isDark ? "#FBBF24" : "#D97706"
+              }; font-family: monospace;">
                     ${varM > 0 ? "+" : "-"}IDR ${varFormatted} M
                   </span>
                 </div>
               `
-                  : ""
-              }
-              <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${
-                isDark ? "#334155" : "#E2E8F0"
-              }; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+              : ""
+            }
+              <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed ${isDark ? "#334155" : "#E2E8F0"
+            }; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
                 <span style="color: ${isDark ? "#94A3B8" : "#64748B"};">Status Rekonsiliasi:</span>
-                <span style="font-weight: 700; color: ${
-                  isMatch ? "#10B981" : varRp > 0 ? "#10B981" : "#F59E0B"
-                }; font-family: monospace;">
-                  ${
-                    isMatch
-                      ? "✓ Match 100%"
-                      : rowData?.month === "Des"
-                      ? "Penyesuaian Tutup Buku (31 Des)"
-                      : varM > 0
-                      ? `+${varFormatted} M`
-                      : `-${varFormatted} M`
-                  }
+                <span style="font-weight: 700; color: ${isMatch ? "#10B981" : varRp > 0 ? "#10B981" : "#F59E0B"
+            }; font-family: monospace;">
+                  ${isMatch
+              ? "✓ Match 100%"
+              : rowData?.month === "Des"
+                ? "Penyesuaian Tutup Buku (31 Des)"
+                : varM > 0
+                  ? `+${varFormatted} M`
+                  : `-${varFormatted} M`
+            }
                 </span>
               </div>
             </div>
@@ -551,7 +543,7 @@ export function MonthlyRevenueChart({
       summary = `\nTotal\tTotal ERP Murni (${displayYear})\tIDR ${totalErpRevenue.toFixed(2)} M\tRp ${Math.round(totalErpRawRevenue).toLocaleString("id-ID", { maximumFractionDigits: 0 })}\t100,0%\t✓ Log Database ERP`;
     } else {
       // Tab 3: Rekonsiliasi & Varian Selisih (Spreadsheet Match)
-      header = "No\tBulan Transaksi\tData Riil ERP (Rp)\tData Keuangan (Rp)\tSelisih Varian (Keuangan vs ERP)\t% Varian\tStatus Audit\n";
+      header = "No\tBulan Transaksi\tData Riil ERP (Rp)\tData Keuangan (Rp)\tSelisih Varian (Keuangan vs ERP)\t% Varian\tStatus Audit\tCatatan Rekonsiliasi\n";
       rows = data
         .map((d, idx) => {
           const fullMonth = FULL_MONTH_NAMES[d.month] || d.month;
@@ -581,11 +573,11 @@ export function MonthlyRevenueChart({
             (Math.abs(varRp) < 1
               ? "Match 100%"
               : d.month === "Des"
-              ? "Penyesuaian Tutup Buku (31 Des)"
-              : varRp > 0
-              ? "Penyesuaian (+)"
-              : "Penyesuaian (-)");
-          return `${idx + 1}\t${fullMonth} ${displayYear}\tRp ${formattedErp}\tRp ${formattedFin}\tRp ${formattedVar}\t${pctVar}%\t${status}`;
+                ? "Penyesuaian Tutup Buku (31 Des)"
+                : varRp > 0
+                  ? "Penyesuaian (+)"
+                  : "Penyesuaian (-)");
+          return `${idx + 1}\t${fullMonth} ${displayYear}\tRp ${formattedErp}\tRp ${formattedFin}\tRp ${formattedVar}\t${pctVar}%\t${status}\t${d.audit_note || "-"}`;
         })
         .join("\n");
       const formattedTotalErp = Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
@@ -686,7 +678,7 @@ export function MonthlyRevenueChart({
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="relative w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -703,12 +695,12 @@ export function MonthlyRevenueChart({
                       Dual-Layer Architecture
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {segment === "oth"
                       ? `Agregasi penjualan komersial pihak ketiga (Murni OTH Non-Afiliasi) dari ${databaseQueried}`
                       : segment === "affiliate"
-                      ? `Agregasi transaksi penjualan khusus antar entitas afiliasi dari ${databaseQueried} (Akan dieliminasi dalam konsolidasi)`
-                      : `Agregasi seluruh transaksi penjualan komersial (Gross) dari ${databaseQueried} (Sesuai standarisasi data keuangan audit)`}
+                        ? `Agregasi transaksi penjualan khusus antar entitas afiliasi dari ${databaseQueried} (Akan dieliminasi dalam konsolidasi)`
+                        : `Agregasi seluruh transaksi penjualan komersial (Gross) dari ${databaseQueried} (Sesuai standarisasi data keuangan audit)`}
                   </p>
                 </div>
 
@@ -723,26 +715,24 @@ export function MonthlyRevenueChart({
               </div>
 
               {/* 3-Tab Layer Navigation Bar (Fixed, No Horizontal Scroll) */}
-              <div className="px-6 pt-3 pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden">
+              <div className="px-6 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80 w-fit">
                   {/* Tab 1: Data Keuangan (Default Active) */}
                   <button
                     type="button"
                     onClick={() => setActiveModalTab("fin")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
-                      activeModalTab === "fin"
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${activeModalTab === "fin"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                      }`}
                   >
                     <ShieldCheck className="h-3.5 w-3.5" />
                     <span>Tab 1: Data Keuangan</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        activeModalTab === "fin"
-                          ? "bg-blue-500 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                      }`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${activeModalTab === "fin"
+                        ? "bg-blue-500 text-white"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
                     >
                       Resmi
                     </span>
@@ -752,20 +742,18 @@ export function MonthlyRevenueChart({
                   <button
                     type="button"
                     onClick={() => setActiveModalTab("erp")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
-                      activeModalTab === "erp"
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${activeModalTab === "erp"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                      }`}
                   >
                     <Database className="h-3.5 w-3.5" />
                     <span>Tab 2: Data Riil ERP</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        activeModalTab === "erp"
-                          ? "bg-blue-500 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                      }`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${activeModalTab === "erp"
+                        ? "bg-blue-500 text-white"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
                     >
                       Murni
                     </span>
@@ -775,20 +763,18 @@ export function MonthlyRevenueChart({
                   <button
                     type="button"
                     onClick={() => setActiveModalTab("recon")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${
-                      activeModalTab === "recon"
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap ${activeModalTab === "recon"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                      }`}
                   >
                     <Scale className="h-3.5 w-3.5" />
                     <span>Tab 3: Rekonsiliasi & Varian</span>
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                        activeModalTab === "recon"
-                          ? "bg-blue-500 text-white"
-                          : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
-                      }`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${activeModalTab === "recon"
+                        ? "bg-blue-500 text-white"
+                        : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                        }`}
                     >
                       Audit Delta
                     </span>
@@ -797,7 +783,7 @@ export function MonthlyRevenueChart({
               </div>
 
               {/* 3 Compact Dynamic Highlight Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-6 py-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 px-6 pt-4 pb-3">
                 {activeModalTab === "recon" ? (
                   <>
                     {/* Card 1: Total Data Keuangan */}
@@ -843,8 +829,8 @@ export function MonthlyRevenueChart({
                           {Math.abs(netVarianceRaw) < 1
                             ? "Rp 0,00 (Match 100%)"
                             : `${netVarianceRaw > 0 ? "+" : ""}IDR ${netVarianceM
-                                .toFixed(2)
-                                .replace(".", ",")} M`}
+                              .toFixed(2)
+                              .replace(".", ",")} M`}
                         </span>
                       </div>
                     </div>
@@ -1021,348 +1007,368 @@ export function MonthlyRevenueChart({
               )}
 
               {/* Table Area: Fully Visible, Zero Scrollbar Disruption, Harmonized Font */}
-              <div className="px-6 py-1 overflow-y-auto flex-1">
-                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto shadow-2xs">
-                  {/* TAB 3: REKONSILIASI & VARIAN SELISIH (Spreadsheet Match) */}
-                  {activeModalTab === "recon" && (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-                        <tr>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-12">No</th>
-                          <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Data Riil ERP (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Data Keuangan (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Selisih Varian (Keuangan vs ERP)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">% Varian</th>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap min-w-[210px] w-52">Status Audit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
-                        {data.map((item, idx) => {
-                          const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
-                          const rawErp =
-                            item.erp_raw_revenue ??
-                            (item.raw_revenue != null && item.raw_revenue > 0
-                              ? item.raw_revenue
-                              : (item.erp_revenue ?? item.revenue ?? 0) * 1e9);
-                          const rawFin =
-                            item.fin_raw_revenue ??
-                            (item.raw_revenue != null && item.raw_revenue > 0
-                              ? item.raw_revenue
-                              : (item.fin_revenue ?? item.revenue ?? 0) * 1e9);
-                          const varRp = item.variance_rp ?? rawFin - rawErp;
-                          const pctVar =
-                            rawErp > 0 ? ((varRp / rawErp) * 100).toFixed(2) : "0,00";
-                          const isMatch = Math.abs(varRp) < 1;
+              <div className="px-6 pt-1 pb-5 overflow-y-auto flex-1">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
+                  <div className="overflow-x-auto">
+                    {/* TAB 3: REKONSILIASI & VARIAN SELISIH (Spreadsheet Match) */}
+                    {activeModalTab === "recon" && (
+                      <table className="w-full text-left text-xs border-separate border-spacing-0">
+                        <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-12 first:rounded-tl-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">No</th>
+                            <th className="py-2.5 px-3 whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Bulan Transaksi</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Data Riil ERP (Rupiah)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Data Keuangan (Rupiah)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Selisih Varian (Keuangan vs ERP)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">% Varian</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap min-w-[170px] w-48 last:rounded-tr-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Status Audit</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
+                          {data.map((item, idx) => {
+                            const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
+                            const rawErp =
+                              item.erp_raw_revenue ??
+                              (item.raw_revenue != null && item.raw_revenue > 0
+                                ? item.raw_revenue
+                                : (item.erp_revenue ?? item.revenue ?? 0) * 1e9);
+                            const rawFin =
+                              item.fin_raw_revenue ??
+                              (item.raw_revenue != null && item.raw_revenue > 0
+                                ? item.raw_revenue
+                                : (item.fin_revenue ?? item.revenue ?? 0) * 1e9);
+                            const varRp = item.variance_rp ?? rawFin - rawErp;
+                            const pctVar =
+                              rawErp > 0 ? ((varRp / rawErp) * 100).toFixed(2) : "0,00";
+                            const isMatch = Math.abs(varRp) < 1;
 
-                          const formattedErp = Math.round(rawErp).toLocaleString("id-ID", {
-                            maximumFractionDigits: 0,
-                          });
-                          const formattedFin = Math.round(rawFin).toLocaleString("id-ID", {
-                            maximumFractionDigits: 0,
-                          });
-                          const formattedVar = Math.round(Math.abs(varRp)).toLocaleString("id-ID", {
-                            maximumFractionDigits: 0,
-                          });
+                            const formattedErp = Math.round(rawErp).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
+                            });
+                            const formattedFin = Math.round(rawFin).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
+                            });
+                            const formattedVar = Math.round(Math.abs(varRp)).toLocaleString("id-ID", {
+                              maximumFractionDigits: 0,
+                            });
 
-                          return (
-                            <tr
-                              key={item.month}
-                              className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
-                            >
-                              <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
-                                {idx + 1}
-                              </td>
-                              <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                {fullMonth} {displayYear}
-                              </td>
-                              <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
-                                Rp {formattedErp}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
-                                Rp {formattedFin}
-                              </td>
-                              <td
-                                className={`py-2 px-3 text-right font-bold whitespace-nowrap ${
-                                  isMatch
+                            return (
+                              <tr
+                                key={item.month}
+                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
+                              >
+                                <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                  {fullMonth} {displayYear}
+                                </td>
+                                <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
+                                  Rp {formattedErp}
+                                </td>
+                                <td className="py-2 px-3 text-right font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap">
+                                  Rp {formattedFin}
+                                </td>
+                                <td
+                                  className={`py-2 px-3 text-right font-bold whitespace-nowrap ${isMatch
                                     ? "text-slate-400 dark:text-slate-500"
                                     : varRp > 0
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : "text-amber-600 dark:text-amber-400"
-                                }`}
-                              >
-                                {isMatch
-                                  ? "Rp 0"
-                                  : `${varRp > 0 ? "+ " : "- "}Rp ${formattedVar}`}
-                              </td>
-                              <td
-                                className={`py-2 px-3 text-right font-medium whitespace-nowrap ${
-                                  isMatch
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : "text-amber-600 dark:text-amber-400"
+                                    }`}
+                                >
+                                  {isMatch
+                                    ? "Rp 0"
+                                    : `${varRp > 0 ? "+ " : "- "}Rp ${formattedVar}`}
+                                </td>
+                                <td
+                                  className={`py-2 px-3 text-right font-medium whitespace-nowrap ${isMatch
                                     ? "text-slate-400"
                                     : varRp > 0
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : "text-amber-600 dark:text-amber-400"
-                                }`}
-                              >
-                                {isMatch ? "0,0%" : `${varRp > 0 ? "+" : ""}${pctVar.replace(".", ",")}%`}
-                              </td>
-                              <td className="py-2 px-3 text-center font-sans whitespace-nowrap min-w-[210px]">
-                                {isMatch ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                                    ✓ Match 100%
-                                  </span>
-                                ) : item.month === "Des" ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
-                                    Penyesuaian Tutup Buku (31 Des)
-                                  </span>
-                                ) : varRp > 0 ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 whitespace-nowrap">
-                                    Penyesuaian (+)
-                                  </span>
-                                ) : (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
-                                    Penyesuaian (-)
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold border-t-2 border-slate-200 dark:border-slate-700 sticky bottom-0 z-10 shadow-2xs">
-                        <tr>
-                          <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                            Total Konsolidasi ({displayYear})
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap">
-                            Rp{" "}
-                            {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 0,
-                            })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-xs whitespace-nowrap">
-                            Rp{" "}
-                            {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
-                              maximumFractionDigits: 0,
-                            })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-xs whitespace-nowrap text-emerald-700 dark:text-emerald-400">
-                            {Math.abs(netVarianceRaw) < 1
-                              ? "Rp 0"
-                              : `${netVarianceRaw > 0 ? "+" : "-"}Rp ${Math.round(
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : "text-amber-600 dark:text-amber-400"
+                                    }`}
+                                >
+                                  {isMatch ? "0,0%" : `${varRp > 0 ? "+" : ""}${pctVar.replace(".", ",")}%`}
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-sans whitespace-nowrap min-w-[170px]">
+                                  {isMatch ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                      ✓ Match 100%
+                                    </span>
+                                  ) : item.month === "Des" ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
+                                      Penyesuaian Tutup Buku (31 Des)
+                                    </span>
+                                  ) : varRp > 0 ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 whitespace-nowrap">
+                                      Penyesuaian (+)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 whitespace-nowrap">
+                                      Penyesuaian (-)
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold">
+                          <tr>
+                            <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap first:rounded-bl-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Total Konsolidasi ({displayYear})
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-700 dark:text-slate-300 text-xs whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Rp{" "}
+                              {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+                                maximumFractionDigits: 0,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-xs whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Rp{" "}
+                              {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+                                maximumFractionDigits: 0,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-xs whitespace-nowrap text-emerald-700 dark:text-emerald-400 border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              {Math.abs(netVarianceRaw) < 1
+                                ? "Rp 0"
+                                : `${netVarianceRaw > 0 ? "+" : "-"}Rp ${Math.round(
                                   Math.abs(netVarianceRaw)
                                 ).toLocaleString("id-ID", { maximumFractionDigits: 0 })}`}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap">
-                            {totalErpRawRevenue > 0
-                              ? ((netVarianceRaw / totalErpRawRevenue) * 100)
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-xs whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              {totalErpRawRevenue > 0
+                                ? ((netVarianceRaw / totalErpRawRevenue) * 100)
                                   .toFixed(2)
                                   .replace(".", ",")
-                              : "0,00"}
-                            %
-                          </td>
-                          <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap min-w-[210px] w-52">
-                            {Math.abs(netVarianceRaw) < 1 ? "✓ Klop Sempurna" : "✓ Balanced Target"}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
+                                : "0,00"}
+                              %
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap min-w-[170px] w-48 last:rounded-br-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              {Math.abs(netVarianceRaw) < 1 ? "✓ Klop Sempurna" : "✓ Balanced Target"}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    )}
 
-                  {/* TAB 1: DATA KEUANGAN (Adjusted / Auto-Balanced) */}
-                  {activeModalTab === "fin" && (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-                        <tr>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-12">No</th>
-                          <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Omzet Keuangan (IDR Miliar)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Nilai Realisasi Keuangan (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">% Kontribusi Total</th>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-36">Status Performa</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
-                        {data.map((item, idx) => {
-                          const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
-                          const finVal = item.fin_revenue ?? item.revenue ?? 0;
-                          const rawVal =
-                            item.fin_raw_revenue ??
-                            (item.raw_revenue != null && item.raw_revenue > 0
-                              ? item.raw_revenue
-                              : finVal * 1e9);
-                          const isMax = maxFinItem.month === item.month && rawVal > 0;
-                          const isMin =
-                            minFinItem.month === item.month &&
-                            rawVal > 0 &&
-                            maxFinItem.month !== minFinItem.month;
-                          const pct =
-                            totalFinRawRevenue > 0
-                              ? ((rawVal / totalFinRawRevenue) * 100).toFixed(1)
-                              : "0,0";
-                          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
-                            maximumFractionDigits: 0,
-                          });
-
-                          return (
-                            <tr
-                              key={item.month}
-                              className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
-                            >
-                              <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
-                                {idx + 1}
-                              </td>
-                              <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                {fullMonth} {displayYear}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                {finVal.toFixed(2).replace(".", ",")} M
-                              </td>
-                              <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
-                                Rp {formattedRp}
-                              </td>
-                              <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                                {pct.replace(".", ",")}%
-                              </td>
-                              <td className="py-2 px-3 text-center font-sans whitespace-nowrap">
-                                {isMax ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                                    Puncak ★
-                                  </span>
-                                ) : isMin ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
-                                    Terendah
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400 text-[10px]">Stabil</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold border-t-2 border-slate-200 dark:border-slate-700 sticky bottom-0 z-10 shadow-2xs">
-                        <tr>
-                          <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                            Total Data Keuangan ({displayYear})
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">
-                            {totalFinRevenue.toFixed(2).replace(".", ",")} M
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
-                            Rp{" "}
-                            {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+                    {/* TAB 1: DATA KEUANGAN (Adjusted / Auto-Balanced) */}
+                    {activeModalTab === "fin" && (
+                      <table className="w-full text-left text-xs border-separate border-spacing-0">
+                        <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-12 first:rounded-tl-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">No</th>
+                            <th className="py-2.5 px-3 whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Bulan Transaksi</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Omzet Keuangan (IDR Miliar)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Nilai Realisasi Keuangan (Rupiah)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">% Kontribusi Total</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-36 last:rounded-tr-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Status Performa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
+                          {data.map((item, idx) => {
+                            const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
+                            const finVal = item.fin_revenue ?? item.revenue ?? 0;
+                            const rawVal =
+                              item.fin_raw_revenue ??
+                              (item.raw_revenue != null && item.raw_revenue > 0
+                                ? item.raw_revenue
+                                : finVal * 1e9);
+                            const isMax = maxFinItem.month === item.month && rawVal > 0;
+                            const isMin =
+                              minFinItem.month === item.month &&
+                              rawVal > 0 &&
+                              maxFinItem.month !== minFinItem.month;
+                            const pct =
+                              totalFinRawRevenue > 0
+                                ? ((rawVal / totalFinRawRevenue) * 100).toFixed(1)
+                                : "0,0";
+                            const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
                               maximumFractionDigits: 0,
-                            })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
-                            100,0%
-                          </td>
-                          <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap w-36">
-                            ✓ Terverifikasi Audit
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
+                            });
 
-                  {/* TAB 2: DATA RIIL ERP (Murni / Raw) */}
-                  {activeModalTab === "erp" && (
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
-                        <tr>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-12">No</th>
-                          <th className="py-2.5 px-3 whitespace-nowrap">Bulan Transaksi</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Omzet ERP Murni (IDR Miliar)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">Nilai Faktur ERP (Rupiah)</th>
-                          <th className="py-2.5 px-3 text-right whitespace-nowrap">% Kontribusi Total</th>
-                          <th className="py-2.5 px-3 text-center whitespace-nowrap w-36">Status Performa</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
-                        {data.map((item, idx) => {
-                          const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
-                          const erpVal = item.erp_revenue ?? item.revenue ?? 0;
-                          const rawVal =
-                            item.erp_raw_revenue ??
-                            (item.raw_revenue != null && item.raw_revenue > 0
-                              ? item.raw_revenue
-                              : erpVal * 1e9);
-                          const isMax = maxErpItem.month === item.month && rawVal > 0;
-                          const isMin =
-                            minErpItem.month === item.month &&
-                            rawVal > 0 &&
-                            maxErpItem.month !== minErpItem.month;
-                          const pct =
-                            totalErpRawRevenue > 0
-                              ? ((rawVal / totalErpRawRevenue) * 100).toFixed(1)
-                              : "0,0";
-                          const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
-                            maximumFractionDigits: 0,
-                          });
+                            return (
+                              <tr
+                                key={item.month}
+                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
+                              >
+                                <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                  {fullMonth} {displayYear}
+                                </td>
+                                <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                                  {finVal.toFixed(2).replace(".", ",")} M
+                                </td>
+                                <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
+                                  Rp {formattedRp}
+                                </td>
+                                <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                  {pct.replace(".", ",")}%
+                                </td>
+                                <td className="py-2 px-3 text-center font-sans whitespace-nowrap">
+                                  {isMax ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                      Puncak ★
+                                    </span>
+                                  ) : isMin ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                      Terendah
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">Stabil</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold">
+                          <tr>
+                            <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap first:rounded-bl-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Total Data Keuangan ({displayYear})
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              {totalFinRevenue.toFixed(2).replace(".", ",")} M
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Rp{" "}
+                              {Math.round(totalFinRawRevenue).toLocaleString("id-ID", {
+                                maximumFractionDigits: 0,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              100,0%
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-xs text-emerald-600 dark:text-emerald-400 font-sans font-semibold whitespace-nowrap w-36 last:rounded-br-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              ✓ Terverifikasi Audit
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    )}
 
-                          return (
-                            <tr
-                              key={item.month}
-                              className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
-                            >
-                              <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
-                                {idx + 1}
-                              </td>
-                              <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
-                                {fullMonth} {displayYear}
-                              </td>
-                              <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                                {erpVal.toFixed(2).replace(".", ",")} M
-                              </td>
-                              <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
-                                Rp {formattedRp}
-                              </td>
-                              <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                                {pct.replace(".", ",")}%
-                              </td>
-                              <td className="py-2 px-3 text-center font-sans whitespace-nowrap">
-                                {isMax ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                                    Puncak ★
-                                  </span>
-                                ) : isMin ? (
-                                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
-                                    Terendah
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-400 text-[10px]">Stabil</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold border-t-2 border-slate-200 dark:border-slate-700 sticky bottom-0 z-10 shadow-2xs">
-                        <tr>
-                          <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap">
-                            Total ERP Murni ({displayYear})
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
-                            {totalErpRevenue.toFixed(2).replace(".", ",")} M
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
-                            Rp{" "}
-                            {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+                    {/* TAB 2: DATA RIIL ERP (Murni / Raw) */}
+                    {activeModalTab === "erp" && (
+                      <table className="w-full text-left text-xs border-separate border-spacing-0">
+                        <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                          <tr>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-12 first:rounded-tl-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">No</th>
+                            <th className="py-2.5 px-3 whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Bulan Transaksi</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Omzet ERP Murni (IDR Miliar)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Nilai Faktur ERP (Rupiah)</th>
+                            <th className="py-2.5 px-3 text-right whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">% Kontribusi Total</th>
+                            <th className="py-2.5 px-3 text-center whitespace-nowrap w-36 last:rounded-tr-xl border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800">Status Performa</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
+                          {data.map((item, idx) => {
+                            const fullMonth = FULL_MONTH_NAMES[item.month] || item.month;
+                            const erpVal = item.erp_revenue ?? item.revenue ?? 0;
+                            const rawVal =
+                              item.erp_raw_revenue ??
+                              (item.raw_revenue != null && item.raw_revenue > 0
+                                ? item.raw_revenue
+                                : erpVal * 1e9);
+                            const isMax = maxErpItem.month === item.month && rawVal > 0;
+                            const isMin =
+                              minErpItem.month === item.month &&
+                              rawVal > 0 &&
+                              maxErpItem.month !== minErpItem.month;
+                            const pct =
+                              totalErpRawRevenue > 0
+                                ? ((rawVal / totalErpRawRevenue) * 100).toFixed(1)
+                                : "0,0";
+                            const formattedRp = Math.round(rawVal).toLocaleString("id-ID", {
                               maximumFractionDigits: 0,
-                            })}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
-                            100,0%
-                          </td>
-                          <td className="py-2.5 px-3 text-center text-xs text-blue-600 dark:text-blue-400 font-sans font-semibold whitespace-nowrap w-36">
-                            ✓ Log Database ERP
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  )}
+                            });
+
+                            return (
+                              <tr
+                                key={item.month}
+                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors even:bg-slate-50/30 dark:even:bg-slate-800/20"
+                              >
+                                <td className="py-2 px-3 text-center text-slate-400 dark:text-slate-500 font-sans">
+                                  {idx + 1}
+                                </td>
+                                <td className="py-2 px-3 font-sans font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                  {fullMonth} {displayYear}
+                                </td>
+                                <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                                  {erpVal.toFixed(2).replace(".", ",")} M
+                                </td>
+                                <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">
+                                  Rp {formattedRp}
+                                </td>
+                                <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                  {pct.replace(".", ",")}%
+                                </td>
+                                <td className="py-2 px-3 text-center font-sans whitespace-nowrap">
+                                  {isMax ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                      Puncak ★
+                                    </span>
+                                  ) : isMin ? (
+                                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                      Terendah
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">Stabil</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="bg-slate-50/95 dark:bg-slate-800/95 font-bold">
+                          <tr>
+                            <td colSpan={2} className="py-2.5 px-3 font-sans text-slate-900 dark:text-slate-100 whitespace-nowrap first:rounded-bl-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Total ERP Murni ({displayYear})
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              {totalErpRevenue.toFixed(2).replace(".", ",")} M
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              Rp{" "}
+                              {Math.round(totalErpRawRevenue).toLocaleString("id-ID", {
+                                maximumFractionDigits: 0,
+                              })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              100,0%
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-xs text-blue-600 dark:text-blue-400 font-sans font-semibold whitespace-nowrap w-36 last:rounded-br-xl border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/95 dark:bg-slate-800/95">
+                              ✓ Log Database ERP
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    )}
+                  </div>
                 </div>
+
+                {/* Audit Context Callout Banner for Tab 3 (Clean Executive Style, No AI Icon/Badge) */}
+                {activeModalTab === "recon" && (
+                  <div className="mt-3.5 p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40">
+                    <h4 className="font-semibold text-xs text-blue-950 dark:text-blue-200 mb-1.5">
+                      Ringkasan Catatan Audit & Rekonsiliasi ({displayYear})
+                    </h4>
+                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
+                      {auditSummary || (
+                        displayYear === "2026"
+                          ? "Selisih kumulatif disebabkan oleh eksklusi 6 nota internal klaim biaya angkut ke ANR (non-komersial) serta penyesuaian dokumen retur penjualan komersial (faktur 068, 063, 075) yang ditarik ke periode buku transaksi asalnya sesuai standar akuntansi matching principle."
+                          : displayYear === "2025"
+                            ? "Selisih kumulatif didorong oleh eksklusi nota klaim transportasi non-komersial 391/INV/AMG-ANR/VIII/25 dan jurnal penyesuaian audit tutup buku akhir tahun (31 Des) untuk menyeimbangkan saldo audited holding."
+                            : displayYear === "2024"
+                              ? "Selisih bulanan berakar dari pergeseran pengakuan koreksi faktur 128/INV/AMG-DSU/III/24 yang dicatat di periode Maret pada pembukuan keuangan, dan disetarakan pada tutup buku Desember sehingga total tahunan klop 100% (Rp 0 selisih)."
+                              : "Tahun berjalan beroperasi dengan model live SQL dinamis penuh. Seluruh data transaksi ERP dan realisasi keuangan tercatat secara real-time tanpa penyesuaian historis lampau."
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer Controls */}
@@ -1371,8 +1377,8 @@ export function MonthlyRevenueChart({
                   {activeModalTab === "recon"
                     ? "Tabel audit rekonsiliasi menyajikan analisis varian transaksi antara catatan database ERP dan target data keuangan resmi audit akhir tahun."
                     : activeModalTab === "fin"
-                    ? "Data Keuangan resmi mencerminkan angka realisasi penjualan audited yang disahkan untuk manajemen dan pemegang saham."
-                    : "Data Riil ERP menampilkan agregasi faktur mentah apa adanya langsung dari database SQL Server untuk kebutuhan operasional IT dan stok logistik."}
+                      ? "Data Keuangan resmi mencerminkan angka realisasi penjualan audited yang disahkan untuk manajemen dan pemegang saham."
+                      : "Data Riil ERP menampilkan agregasi faktur mentah apa adanya langsung dari database SQL Server untuk kebutuhan operasional IT dan stok logistik."}
                 </span>
 
                 <div className="flex items-center gap-3 shrink-0">

@@ -167,6 +167,7 @@ export function OverviewView({
             segment={segment}
             databaseQueried={data.database_queried}
             affiliateBreakdown={data.affiliate_breakdown}
+            auditSummary={data.audit_summary}
           />
         </div>
 

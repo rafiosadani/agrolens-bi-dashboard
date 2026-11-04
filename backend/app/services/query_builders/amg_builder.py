@@ -207,7 +207,7 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                 ORDER BY Bln
             """
 
-        else:
+        elif year == 2024:
             # 2024 Financial Model (With Typo Mapping, Invoice 128 adjustment, and Net Deduplication)
             if segment != "affiliate":
                 tambah_clause = f""",
@@ -303,6 +303,71 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                     ROUND(SUM(Penjualan), 2) AS MonthlyOmzet
                 FROM Combined
                 WHERE Bln IN ({months_str})
+                GROUP BY Bln
+                ORDER BY Bln
+            """
+
+        else:
+            # Universal Dynamic Future Model (2027 and beyond)
+            # Fully dynamic live SQL using parameter {year} without historical hardcoded adjustments.
+            date_cond = f"sih.TglFaktur >= '{year}-01-01' AND sih.TglFaktur < '{year + 1}-01-01'"
+            return f"""
+                WITH RawCombinedData AS (
+                    SELECT
+                        'AMG' AS [PT], {year} AS TahunDb,
+                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
+                        CAST(sih.TglFaktur AS DATE) AS TglTrn,
+                        MONTH(sih.TglFaktur) AS Bln,
+                        sii.Qty AS Qty,
+                        COALESCE(NULLIF(sii.HargaNet, 0), 
+                            (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
+                             * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) 
+                            * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)
+                        ) AS BaseHargaNet,
+                        CASE 
+                            WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0
+                            ELSE 1.0
+                        END AS PpnDivider,
+                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
+                        sii.SalesInvoiceItemId AS TransactionItemId
+                    FROM [{self.db_name}].[dbo].[SalesInvoiceItems] sii
+                    INNER JOIN [{self.db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
+                    LEFT JOIN [{self.db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
+                    WHERE {date_cond}
+                      AND MONTH(sih.TglFaktur) IN ({months_str})
+                      {aff_clause}
+                ),
+                CalculatedNet AS (
+                    SELECT 
+                        *,
+                        (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal,
+                        SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvoiceTotalSubtotal
+                    FROM RawCombinedData
+                ),
+                FinalNetPrice AS (
+                    SELECT 
+                        *,
+                        CASE 
+                            WHEN InvoiceTotalSubtotal > 0 THEN 
+                                (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvoiceTotalSubtotal) * HeaderExtDisc / NULLIF(Qty, 0))
+                            ELSE 
+                                (BaseHargaNet / PpnDivider)
+                        END AS HargaJualNet
+                    FROM CalculatedNet
+                ),
+                RankedData AS (
+                    SELECT *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY TahunDb, TransactionItemId, NoInvoice
+                            ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC
+                        ) AS rn
+                    FROM FinalNetPrice
+                )
+                SELECT 
+                    Bln, 
+                    ROUND(SUM(Qty * HargaJualNet), 2) AS MonthlyOmzet
+                FROM RankedData
+                WHERE rn = 1 AND Bln IN ({months_str})
                 GROUP BY Bln
                 ORDER BY Bln
             """

@@ -18,6 +18,7 @@ export interface MonthlyRevenueItem {
   variance_m?: number;
   variance_rp?: number;
   status?: string;
+  audit_note?: string;
 }
 
 export interface ProductTypeItem {
@@ -64,6 +65,7 @@ export interface OverviewSummaryData {
     kesesuaian_rkap: KpiMetricItem;
   };
   monthly_revenue_2026: MonthlyRevenueItem[];
+  audit_summary?: string;
   affiliate_breakdown?: AffiliateBreakdownItem[];
   revenue_by_product_type: {
     total_formatted: string;
