@@ -14,6 +14,7 @@ import {
   Award,
   Layers,
   Search,
+  Filter,
 } from "lucide-react";
 import * as echarts from "echarts";
 
@@ -23,6 +24,7 @@ interface ProductTypeDonutChartProps {
   items: ProductTypeItem[];
   period?: string;
   databaseQueried?: string;
+  segment?: string;
 }
 
 export function ProductTypeDonutChart({
@@ -31,6 +33,7 @@ export function ProductTypeDonutChart({
   items,
   period = "Jan–Sep 2026",
   databaseQueried = "APIdb003, AGCdb003, AGFdb003",
+  segment = "all",
 }: ProductTypeDonutChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -97,6 +100,19 @@ export function ProductTypeDonutChart({
     return match ? match[1] : "2026";
   }, [period]);
 
+  // Segment labels and subtitles aligned with executive standards
+  const segmentLabel = useMemo(() => {
+    if (segment === "oth") return "Non-Afiliasi (Murni OTH)";
+    if (segment === "affiliate") return "Afiliasi Antar-Grup";
+    return "Semua Penjualan (Gross)";
+  }, [segment]);
+
+  const segmentSubtitle = useMemo(() => {
+    if (segment === "oth") return "Porsi kontribusi kategori terhadap penjualan pihak ketiga (OTH)";
+    if (segment === "affiliate") return "Porsi kontribusi kategori terhadap penjualan antar entitas afiliasi";
+    return "Porsi kontribusi kategori terhadap total penjualan komersial";
+  }, [segment]);
+
   // Calculate highest / dominant category
   const dominantCategory = useMemo(() => {
     if (!items || items.length === 0) return null;
@@ -119,7 +135,7 @@ export function ProductTypeDonutChart({
     const chartData = positiveItems.map((it) => ({
       name: it.name,
       value: it.revenue_m || (it.raw_revenue ? it.raw_revenue / 1e9 : it.percentage),
-      rawRp: it.formatted_rp || (it.raw_revenue ? `Rp ${it.raw_revenue.toLocaleString("id-ID")}` : ""),
+      rawRp: it.formatted_rp || (it.raw_revenue ? `Rp ${Math.round(it.raw_revenue).toLocaleString("id-ID")}` : ""),
       percentage: it.percentage,
       itemStyle: {
         color: it.color,
@@ -183,12 +199,12 @@ export function ProductTypeDonutChart({
       .map((it, idx) => {
         const valM = (it.revenue_m || (it.raw_revenue ? it.raw_revenue / 1e9 : 0)).toFixed(2).replace(".", ",");
         const formattedRp = it.raw_revenue
-          ? Number(it.raw_revenue).toLocaleString("id-ID", { maximumFractionDigits: 2 })
+          ? Math.round(Number(it.raw_revenue)).toLocaleString("id-ID", { maximumFractionDigits: 0 })
           : "0";
         return `${idx + 1}\t${it.name}\tIDR ${valM} M\tRp ${formattedRp}\t${it.percentage}%`;
       })
       .join("\n");
-    const summary = `\nTotal Konsolidasi\t${totalFormatted}\tRp ${Number(computedTotalRaw).toLocaleString("id-ID", { maximumFractionDigits: 2 })}\t100,0%`;
+    const summary = `\nTotal Konsolidasi\t${totalFormatted}\tRp ${Math.round(Number(computedTotalRaw)).toLocaleString("id-ID", { maximumFractionDigits: 0 })}\t100,0%`;
 
     navigator.clipboard.writeText(header + rows + summary);
     setCopied(true);
@@ -210,9 +226,13 @@ export function ProductTypeDonutChart({
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live SQL
               </span>
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0">
+                <Filter className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                {segmentLabel}
+              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Porsi kontribusi kategori terhadap total YTD
+              {segmentSubtitle}
             </p>
           </div>
 
@@ -357,16 +377,24 @@ export function ProductTypeDonutChart({
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
               <div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
                     Rincian Audit Revenue per Jenis Produk
                   </h3>
                   <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     Live SQL (Konsolidasi {displayYear})
                   </span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                    <Filter className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                    {segmentLabel}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Agregasi transaksi penjualan per kategori dari {databaseQueried} (Sesuai klasifikasi master item ERP)
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  {segment === "oth"
+                    ? `Agregasi penjualan komersial pihak ketiga (Murni OTH Non-Afiliasi) per kategori produk dari ${databaseQueried}`
+                    : segment === "affiliate"
+                      ? `Agregasi penjualan khusus antar entitas afiliasi per kategori produk dari ${databaseQueried}`
+                      : `Agregasi transaksi penjualan komersial (Gross) per kategori produk dari ${databaseQueried} (Sesuai standarisasi data keuangan audit)`}
                 </p>
               </div>
 
@@ -481,9 +509,8 @@ export function ProductTypeDonutChart({
                     {displayedModalItems.map((it, idx) => {
                       const valM = (it.revenue_m || (it.raw_revenue ? it.raw_revenue / 1e9 : 0)).toFixed(2).replace(".", ",");
                       const formattedRp = it.raw_revenue
-                        ? Number(it.raw_revenue).toLocaleString("id-ID", {
-                            minimumFractionDigits: it.raw_revenue % 1 === 0 ? 0 : 2,
-                            maximumFractionDigits: 2,
+                        ? Math.round(Number(it.raw_revenue)).toLocaleString("id-ID", {
+                            maximumFractionDigits: 0,
                           })
                         : "0";
 
@@ -548,9 +575,8 @@ export function ProductTypeDonutChart({
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-800 dark:text-slate-200 text-sm whitespace-nowrap">
                         Rp{" "}
-                        {Number(computedTotalRaw).toLocaleString("id-ID", {
-                          minimumFractionDigits: computedTotalRaw % 1 === 0 ? 0 : 2,
-                          maximumFractionDigits: 2,
+                        {Math.round(Number(computedTotalRaw)).toLocaleString("id-ID", {
+                          maximumFractionDigits: 0,
                         })}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">

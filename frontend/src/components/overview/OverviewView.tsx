@@ -179,6 +179,7 @@ export function OverviewView({
             items={revenue_by_product_type.items}
             period={data.period || period}
             databaseQueried={data.database_queried}
+            segment={segment}
           />
         </div>
       </div>

@@ -715,7 +715,7 @@ export function MonthlyRevenueChart({
               </div>
 
               {/* 3-Tab Layer Navigation Bar (Fixed, No Horizontal Scroll) */}
-              <div className="px-6 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div className="px-6 pt-3 pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900 overflow-hidden">
                 <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 dark:bg-slate-800/90 rounded-xl border border-slate-200/80 dark:border-slate-700/80 w-fit">
                   {/* Tab 1: Data Keuangan (Default Active) */}
                   <button
@@ -985,6 +985,31 @@ export function MonthlyRevenueChart({
                 </div>
               )}
 
+              {/* Audit Summary Callout Card for Tab 3 (Executive Summary - Positioned Above Table for Immediate Visibility) */}
+              {activeModalTab === "recon" && (
+                <div className="mx-6 mb-3 p-3.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-blue-200/50 dark:border-blue-800/50">
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">
+                      Ringkasan Catatan Audit & Rekonsiliasi ({displayYear})
+                    </span>
+                    <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 px-2.5 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 w-fit">
+                      Live SQL Reconciliation
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
+                    {auditSummary || (
+                      displayYear === "2026"
+                        ? "Selisih kumulatif disebabkan oleh eksklusi 6 nota internal klaim biaya angkut ke ANR (non-komersial) serta penyesuaian dokumen retur penjualan komersial (faktur 068, 063, 075) yang ditarik ke periode buku transaksi asalnya sesuai standar akuntansi matching principle."
+                        : displayYear === "2025"
+                          ? "Selisih kumulatif didorong oleh eksklusi nota klaim transportasi non-komersial 391/INV/AMG-ANR/VIII/25 dan jurnal penyesuaian audit tutup buku akhir tahun (31 Des) untuk menyeimbangkan saldo audited holding."
+                          : displayYear === "2024"
+                            ? "Selisih bulanan berakar dari pergeseran pengakuan koreksi faktur 128/INV/AMG-DSU/III/24 yang dicatat di periode Maret pada pembukuan keuangan, dan disetarakan pada tutup buku Desember sehingga total tahunan klop 100% (Rp 0 selisih)."
+                            : "Tahun berjalan beroperasi dengan model live SQL dinamis penuh. Seluruh data transaksi ERP dan realisasi keuangan tercatat secara real-time tanpa penyesuaian historis lampau."
+                    )}
+                  </p>
+                </div>
+              )}
+
               {/* Stacked Group Row: Catatan Transaksi Afiliasi (Zero Emoji, Clean Enterprise Styling) */}
               {segment !== "affiliate" && activeModalTab === "recon" && affiliateBreakdown && affiliateBreakdown.length > 0 && (
                 <div className="mx-6 mb-3 p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 shadow-3xs">
@@ -1007,7 +1032,7 @@ export function MonthlyRevenueChart({
               )}
 
               {/* Table Area: Fully Visible, Zero Scrollbar Disruption, Harmonized Font */}
-              <div className="px-6 pt-1 pb-5 overflow-y-auto flex-1">
+              <div className="px-6 py-1 overflow-y-auto flex-1">
                 <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs bg-white dark:bg-slate-900">
                   <div className="overflow-x-auto">
                     {/* TAB 3: REKONSILIASI & VARIAN SELISIH (Spreadsheet Match) */}
@@ -1349,69 +1374,39 @@ export function MonthlyRevenueChart({
                     )}
                   </div>
                 </div>
-
-                {/* Audit Context Callout Banner for Tab 3 (Clean Executive Style, No AI Icon/Badge) */}
-                {activeModalTab === "recon" && (
-                  <div className="mt-3.5 p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40">
-                    <h4 className="font-semibold text-xs text-blue-950 dark:text-blue-200 mb-1.5">
-                      Ringkasan Catatan Audit & Rekonsiliasi ({displayYear})
-                    </h4>
-                    <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[11px]">
-                      {auditSummary || (
-                        displayYear === "2026"
-                          ? "Selisih kumulatif disebabkan oleh eksklusi 6 nota internal klaim biaya angkut ke ANR (non-komersial) serta penyesuaian dokumen retur penjualan komersial (faktur 068, 063, 075) yang ditarik ke periode buku transaksi asalnya sesuai standar akuntansi matching principle."
-                          : displayYear === "2025"
-                            ? "Selisih kumulatif didorong oleh eksklusi nota klaim transportasi non-komersial 391/INV/AMG-ANR/VIII/25 dan jurnal penyesuaian audit tutup buku akhir tahun (31 Des) untuk menyeimbangkan saldo audited holding."
-                            : displayYear === "2024"
-                              ? "Selisih bulanan berakar dari pergeseran pengakuan koreksi faktur 128/INV/AMG-DSU/III/24 yang dicatat di periode Maret pada pembukuan keuangan, dan disetarakan pada tutup buku Desember sehingga total tahunan klop 100% (Rp 0 selisih)."
-                              : "Tahun berjalan beroperasi dengan model live SQL dinamis penuh. Seluruh data transaksi ERP dan realisasi keuangan tercatat secara real-time tanpa penyesuaian historis lampau."
-                      )}
-                    </p>
-                  </div>
-                )}
               </div>
 
               {/* Modal Footer Controls */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed max-w-2xl">
-                  {activeModalTab === "recon"
-                    ? "Tabel audit rekonsiliasi menyajikan analisis varian transaksi antara catatan database ERP dan target data keuangan resmi audit akhir tahun."
-                    : activeModalTab === "fin"
-                      ? "Data Keuangan resmi mencerminkan angka realisasi penjualan audited yang disahkan untuk manajemen dan pemegang saham."
-                      : "Data Riil ERP menampilkan agregasi faktur mentah apa adanya langsung dari database SQL Server untuk kebutuhan operasional IT dan stok logistik."}
-                </span>
+              <div className="flex items-center justify-end gap-3 px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+                <button
+                  type="button"
+                  onClick={handleCopyTable}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap select-none"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-4 w-4 text-white shrink-0" />
+                      <span className="whitespace-nowrap font-medium">
+                        Berhasil Tersalin ke Clipboard!
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 text-white shrink-0" />
+                      <span className="whitespace-nowrap font-medium">
+                        Salin Semua ke Excel (CSV)
+                      </span>
+                    </>
+                  )}
+                </button>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleCopyTable}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 whitespace-nowrap select-none"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="h-4 w-4 text-white shrink-0" />
-                        <span className="whitespace-nowrap font-medium">
-                          Berhasil Tersalin ke Clipboard!
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4 text-white shrink-0" />
-                        <span className="whitespace-nowrap font-medium">
-                          Salin Semua ke Excel (CSV)
-                        </span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap select-none"
-                  >
-                    Tutup
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer shrink-0 whitespace-nowrap select-none"
+                >
+                  Tutup
+                </button>
               </div>
             </div>
           </div>,

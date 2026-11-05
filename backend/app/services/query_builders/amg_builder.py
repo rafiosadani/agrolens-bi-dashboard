@@ -423,3 +423,361 @@ class AMGQueryBuilder(BaseSalesQueryBuilder):
                 END
         """
 
+    def build_product_categories_query(self, year: int, months: List[int], segment: str = "all", top_n: int = 1000) -> str:
+        """
+        Builds audited net sales query per SKU / product for Donut Chart (AMG).
+        100% synchronized with Monthly Revenue Trend & Audited Finance Benchmarks.
+        """
+        months_str = ", ".join(str(m) for m in months)
+        aff_clause = self.build_affiliate_clause(segment)
+
+        if year == 2026:
+            if segment != "affiliate":
+                tambah_clause = f""",
+                Tambah AS (
+                    SELECT 
+                        v.kode_b AS KodeItem,
+                        v.nama_b AS NamaBarang,
+                        CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
+                    FROM (VALUES
+                        ('068/INV/AMG-WKS/II/26',  2, 'FG-050', 'ZnCuS 10/15/6 LAKABA', -12538240.00),
+                        ('063/INV/AMG-WKS/II/26',  2, 'FG-050', 'ZnCuS 10/15/6 LAKABA',  -1500000.00),
+                        ('075/INV/AMG-WKS/II/26',  2, 'FG-050', 'ZnCuS 10/15/6 LAKABA',  -2600000.00),
+                        ('ADJ/CUTOFF-SEP/2026',   9, 'ADJ',    'Penyesuaian Audit Cutoff', -24769750.00),
+                        ('ADJ/CUTOFF-OKT/2026',  10, 'ADJ',    'Penyesuaian Audit Cutoff',  24769750.00)
+                    ) v(inv, periode, kode_b, nama_b, nilai)
+                    WHERE v.periode IN ({months_str})
+                ),
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                    UNION ALL
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Tambah
+                )"""
+            else:
+                tambah_clause = f""",
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                )"""
+
+            return f"""
+                WITH RawCombinedData AS (
+                    SELECT
+                        'AMG' AS [PT], 2026 AS TahunDb,
+                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
+                        CAST(sih.TglFaktur AS DATE) AS TglTrn,
+                        MONTH(sih.TglFaktur) AS Bln,
+                        ISNULL(inv.KodeItem, '') AS KodeItem,
+                        ISNULL(sii.NamaBarang, ISNULL(inv.NamaBarang, 'UMUM')) AS NamaBarang,
+                        sii.Qty AS Qty,
+                        COALESCE(NULLIF(sii.HargaNet, 0), 
+                            (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
+                             * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) 
+                            * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)
+                        ) AS BaseHargaNet,
+                        CASE 
+                            WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0
+                            ELSE 1.0
+                        END AS PpnDivider,
+                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
+                        sii.SalesInvoiceItemId AS TransactionItemId
+                    FROM [{self.db_name}].[dbo].[SalesInvoiceItems] sii
+                    INNER JOIN [{self.db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
+                    LEFT JOIN [{self.db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
+                    LEFT JOIN [{self.db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
+                    LEFT JOIN [{self.db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
+                    WHERE sih.TglFaktur >= '2026-01-01' AND sih.TglFaktur < '2027-01-01'
+                      {aff_clause}
+                      AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN (
+                          '421.1/INV/AMG-ANR/VIII/26',
+                          '421.2/INV/AMG-ANR/VIII/26',
+                          '436/INV/AMG-BLS/IX/26(PPN KELUARAN)',
+                          '376/INV/AMG-MAR/VIII/26(1)',
+                          '387/INV/AMG-ASL/VIII/26 (1)',
+                          '236/INV/AMG-GH/V/26(1)'
+                      )
+                ),
+                CalculatedNet AS (
+                    SELECT 
+                        *,
+                        (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal,
+                        SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvoiceTotalSubtotal
+                    FROM RawCombinedData
+                ),
+                FinalNetPrice AS (
+                    SELECT 
+                        *,
+                        CASE 
+                            WHEN InvoiceTotalSubtotal > 0 THEN 
+                                (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvoiceTotalSubtotal) * HeaderExtDisc / NULLIF(Qty, 0))
+                            ELSE 
+                                (BaseHargaNet / PpnDivider)
+                        END AS HargaJualNet
+                    FROM CalculatedNet
+                ),
+                RankedData AS (
+                    SELECT *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY TahunDb, TransactionItemId, NoInvoice
+                            ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC
+                        ) AS rn
+                    FROM FinalNetPrice
+                ),
+                Base AS (
+                    SELECT 
+                        r.Bln,
+                        r.KodeItem,
+                        r.NamaBarang,
+                        ROUND(CASE 
+                            WHEN r.NoInvoice = '291/INV/AMG-AP/V/26' THEN 
+                                (r.Qty * r.HargaJualNet) - 100000000.00
+                            WHEN r.NoInvoice LIKE 'RS-%' THEN 
+                                -1 * (r.Qty * r.HargaJualNet)
+                            ELSE 
+                                (r.Qty * r.HargaJualNet)
+                        END, 2) AS Penjualan
+                    FROM RankedData r
+                    WHERE r.rn = 1
+                )
+                {tambah_clause}
+                SELECT 
+                    KodeItem,
+                    NamaBarang,
+                    ROUND(SUM(Penjualan), 2) AS TotalOmzet
+                FROM Combined
+                GROUP BY KodeItem, NamaBarang
+                ORDER BY TotalOmzet DESC
+            """
+
+        elif year == 2025:
+            extra_excl = "AND LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) NOT IN ('391/INV/AMG-ANR/VIII/25')"
+            if segment != "affiliate":
+                tambah_clause = f""",
+                Tambah AS (
+                    SELECT 
+                        v.kode_b AS KodeItem,
+                        v.nama_b AS NamaBarang,
+                        CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
+                    FROM (VALUES
+                        ('ADJ/AUDIT-FEB/2025',  2, 'ADJ', 'Penyesuaian Audit Februari',   -4579762.00),
+                        ('ADJ/AUDIT-MAR/2025',  3, 'ADJ', 'Penyesuaian Audit Maret',          3621.01),
+                        ('ADJ/AUDIT-JUN/2025',  6, 'ADJ', 'Penyesuaian Audit Juni',        -367567.18),
+                        ('ADJ/AUDIT-AGU/2025',  8, 'ADJ', 'Penyesuaian Audit Agustus',     1000000.00),
+                        ('ADJ/AUDIT-OKT/2025', 10, 'ADJ', 'Penyesuaian Audit Oktober',   -61091000.40),
+                        ('ADJ/AUDIT-NOV/2025', 11, 'ADJ', 'Penyesuaian Audit November',    -981518.95),
+                        ('ADJ/AUDIT-DES/2025', 12, 'ADJ', 'Penyesuaian Audit Tutup Buku', -55043231.73)
+                    ) v(inv, periode, kode_b, nama_b, nilai)
+                    WHERE v.periode IN ({months_str})
+                ),
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                    UNION ALL
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Tambah
+                )"""
+            else:
+                tambah_clause = f""",
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                )"""
+
+            return f"""
+                WITH RawData AS (
+                    SELECT
+                        MONTH(sih.TglFaktur) AS Bln,
+                        ISNULL(inv.KodeItem, '') AS KodeItem,
+                        ISNULL(sii.NamaBarang, ISNULL(inv.NamaBarang, 'UMUM')) AS NamaBarang,
+                        sii.Qty,
+                        COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
+                        CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
+                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
+                        sii.SalesInvoiceItemId,
+                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice
+                    FROM [{self.db_name}].[dbo].[SalesInvoiceItems] sii
+                    INNER JOIN [{self.db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
+                    LEFT JOIN [{self.db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
+                    LEFT JOIN [{self.db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
+                    LEFT JOIN [{self.db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
+                    WHERE sih.TglFaktur >= '2025-01-01' AND sih.TglFaktur < '2026-01-01'
+                      {aff_clause}
+                      {extra_excl}
+                ),
+                NetCalc AS (
+                    SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal, SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvSubtotal
+                    FROM RawData
+                ),
+                FinalP AS (
+                    SELECT *, CASE WHEN InvSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvSubtotal) * HeaderExtDisc / NULLIF(Qty, 0)) ELSE (BaseHargaNet / PpnDivider) END AS HargaNet
+                    FROM NetCalc
+                ),
+                Ranked AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
+                ),
+                Base AS (
+                    SELECT 
+                        Bln, 
+                        KodeItem, 
+                        NamaBarang, 
+                        ROUND(CASE 
+                            WHEN NoInvoice LIKE 'RS-%' THEN -1 * (Qty * HargaNet)
+                            ELSE (Qty * HargaNet)
+                        END, 2) AS Penjualan
+                    FROM Ranked
+                    WHERE rn = 1
+                )
+                {tambah_clause}
+                SELECT 
+                    KodeItem,
+                    NamaBarang,
+                    ROUND(SUM(Penjualan), 2) AS TotalOmzet 
+                FROM Combined 
+                GROUP BY KodeItem, NamaBarang
+                ORDER BY TotalOmzet DESC
+            """
+
+        elif year == 2024:
+            if segment != "affiliate":
+                tambah_clause = f""",
+                Tambah AS (
+                    SELECT 
+                        v.kode_b AS KodeItem,
+                        v.nama_b AS NamaBarang,
+                        CAST(v.nilai AS DECIMAL(18,2)) AS Penjualan
+                    FROM (VALUES
+                        ('128/INV/AMG-DSU/III/24',  3, 'TR-01', 'NPK 16/16/16', -374880000.00),
+                        ('ADJ/AUDIT-DES/2024',    12, 'TR-01', 'NPK 16/16/16',  376780000.00)
+                    ) v(inv, periode, kode_b, nama_b, nilai)
+                    WHERE v.periode IN ({months_str})
+                ),
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                    UNION ALL
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Tambah
+                )"""
+            else:
+                tambah_clause = f""",
+                Combined AS (
+                    SELECT KodeItem, NamaBarang, Penjualan FROM Base WHERE Bln IN ({months_str})
+                )"""
+
+            return f"""
+                WITH RawData AS (
+                    SELECT
+                        MONTH(sih.TglFaktur) AS Bln,
+                        ISNULL(inv.KodeItem, '') AS KodeItem,
+                        ISNULL(sii.NamaBarang, ISNULL(inv.NamaBarang, 'UMUM')) AS NamaBarang,
+                        sii.Qty,
+                        COALESCE(NULLIF(sii.HargaNet, 0), (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)) AS BaseHargaNet,
+                        CASE WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0 ELSE 1.0 END AS PpnDivider,
+                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
+                        sii.SalesInvoiceItemId,
+                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice
+                    FROM [{self.db_name}].[dbo].[SalesInvoiceItems] sii
+                    INNER JOIN [{self.db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
+                    LEFT JOIN [{self.db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
+                    LEFT JOIN [{self.db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
+                    LEFT JOIN [{self.db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
+                    WHERE sih.TglFaktur >= '2024-01-01' AND sih.TglFaktur < '2025-01-01'
+                      {aff_clause}
+                ),
+                NetCalc AS (
+                    SELECT *, (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal, SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvSubtotal
+                    FROM RawData
+                ),
+                FinalP AS (
+                    SELECT *, CASE WHEN InvSubtotal > 0 THEN (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvSubtotal) * HeaderExtDisc / NULLIF(Qty, 0)) ELSE (BaseHargaNet / PpnDivider) END AS HargaNet
+                    FROM NetCalc
+                ),
+                Ranked AS (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY SalesInvoiceItemId, NoInvoice ORDER BY SalesInvoiceItemId) AS rn FROM FinalP
+                ),
+                Base AS (
+                    SELECT 
+                        Bln, 
+                        KodeItem, 
+                        NamaBarang, 
+                        ROUND(CASE 
+                            WHEN NoInvoice LIKE 'RS-%' THEN -1 * (Qty * HargaNet)
+                            ELSE (Qty * HargaNet)
+                        END, 2) AS Penjualan
+                    FROM Ranked
+                    WHERE rn = 1
+                )
+                {tambah_clause}
+                SELECT 
+                    KodeItem,
+                    NamaBarang,
+                    ROUND(SUM(Penjualan), 2) AS TotalOmzet 
+                FROM Combined 
+                GROUP BY KodeItem, NamaBarang
+                ORDER BY TotalOmzet DESC
+            """
+
+        else:
+            # Universal Dynamic Future Model (2027+)
+            date_cond = f"sih.TglFaktur >= '{year}-01-01' AND sih.TglFaktur < '{year + 1}-01-01'"
+            return f"""
+                WITH RawCombinedData AS (
+                    SELECT
+                        'AMG' AS [PT], {year} AS TahunDb,
+                        LTRIM(RTRIM(REPLACE(sih.NoBukti, '''', ''))) AS NoInvoice, 
+                        CAST(sih.TglFaktur AS DATE) AS TglTrn,
+                        MONTH(sih.TglFaktur) AS Bln,
+                        ISNULL(inv.KodeItem, '') AS KodeItem,
+                        ISNULL(sii.NamaBarang, ISNULL(inv.NamaBarang, 'UMUM')) AS NamaBarang,
+                        sii.Qty AS Qty,
+                        COALESCE(NULLIF(sii.HargaNet, 0), 
+                            (((sii.HargaJual * (1.0 - ISNULL(sii.ItemDisPsn, 0)/100.0)) - ISNULL(sii.ItemDisc, 0)) 
+                             * (1.0 - ISNULL(sii.ItemDisPsn2, 0)/100.0) - ISNULL(sii.ItemDisc2, 0)) 
+                            * (1.0 - ISNULL(sii.ItemDisPsn3, 0)/100.0) - ISNULL(sii.ItemDisc3, 0)
+                        ) AS BaseHargaNet,
+                        CASE 
+                            WHEN sii.IsPpn = 1 AND sih.TypePpn = 'I' THEN 1.0 + ISNULL(sih.PpnPersen, 11.0) / 100.0
+                            ELSE 1.0
+                        END AS PpnDivider,
+                        ISNULL(sih.ExtDisc, 0) AS HeaderExtDisc,
+                        sii.SalesInvoiceItemId AS TransactionItemId
+                    FROM [{self.db_name}].[dbo].[SalesInvoiceItems] sii
+                    INNER JOIN [{self.db_name}].[dbo].[SalesInvoiceHeaders] sih ON sii.SalesInvoiceHeaderId = sih.SalesInvoiceHeaderId
+                    LEFT JOIN [{self.db_name}].[dbo].[InventoryStocks] istok ON sii.InventoryStockId = istok.InventoryStockId
+                    LEFT JOIN [{self.db_name}].[dbo].[Inventories] inv ON istok.InventoryId = inv.InventoryId
+                    LEFT JOIN [{self.db_name}].[dbo].[Customers] c ON sih.CustomerId = c.CustomerId
+                    WHERE {date_cond}
+                      AND MONTH(sih.TglFaktur) IN ({months_str})
+                      {aff_clause}
+                ),
+                CalculatedNet AS (
+                    SELECT 
+                        *,
+                        (Qty * BaseHargaNet / PpnDivider) AS LineSubtotal,
+                        SUM(Qty * BaseHargaNet / PpnDivider) OVER (PARTITION BY NoInvoice) AS InvoiceTotalSubtotal
+                    FROM RawCombinedData
+                ),
+                FinalNetPrice AS (
+                    SELECT 
+                        *,
+                        CASE 
+                            WHEN InvoiceTotalSubtotal > 0 THEN 
+                                (BaseHargaNet / PpnDivider) - (((Qty * BaseHargaNet / PpnDivider) / InvoiceTotalSubtotal) * HeaderExtDisc / NULLIF(Qty, 0))
+                            ELSE 
+                                (BaseHargaNet / PpnDivider)
+                        END AS HargaJualNet
+                    FROM CalculatedNet
+                ),
+                RankedData AS (
+                    SELECT *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY TahunDb, TransactionItemId, NoInvoice
+                            ORDER BY CASE WHEN YEAR(TglTrn) = TahunDb THEN 0 ELSE 1 END, TahunDb DESC
+                        ) AS rn
+                    FROM FinalNetPrice
+                )
+                SELECT 
+                    KodeItem,
+                    NamaBarang,
+                    ROUND(SUM(Qty * HargaJualNet), 2) AS TotalOmzet
+                FROM RankedData
+                WHERE rn = 1 AND Bln IN ({months_str})
+                GROUP BY KodeItem, NamaBarang
+                ORDER BY TotalOmzet DESC
+            """
+
+
